@@ -1,29 +1,60 @@
 const express = require('express');
 const cors = require('cors');
-const db = require('./src/config/db'); // Importamos tu nueva conexión a MySQL
+const db = require('./src/config/db');
 
 const app = express();
 
-// Middlewares
 app.use(cors());
 app.use(express.json());
 
-// NUEVO ENDPOINT: Extraer datos para el Dashboard
+// 1. Datos para las tarjetas (KPIs)
 app.get('/api/dashboard', async (req, res) => {
     try {
-        // Hacemos la consulta real a tu tabla 'avaluo'
-        const [rows] = await db.query('SELECT COUNT(*) AS total FROM avaluo');
-        const totalAvaluos = rows[0].total;
+        const hoy = new Date().toISOString().split('T')[0];
 
-        // Enviamos la respuesta en formato JSON puro
+        const [atrasados] = await db.query(
+            'SELECT COUNT(*) AS total FROM avaluoenntity WHERE fecha_limite_entrega < ? AND estado = "Activo"', 
+            [hoy]
+        );
+
+        const [enProceso] = await db.query(
+            'SELECT COUNT(*) AS total FROM avaluoenntity WHERE fecha_limite_entrega >= ? AND estado = "Activo"', 
+            [hoy]
+        );
+
+        const [pendientes] = await db.query(
+            'SELECT COUNT(*) AS total FROM avaluoenntity WHERE fecha_limite_entrega IS NULL AND estado = "Activo"'
+        );
+
         res.json({
-            total: totalAvaluos,
-            mensaje: "¡Conexión a MySQL exitosa!"
+            atrasados: atrasados[0].total,
+            enProceso: enProceso[0].total,
+            pendientes: pendientes[0].total
         });
-
     } catch (error) {
-        console.error("Error en BD:", error);
-        res.status(500).json({ error: "Ocurrió un error al conectar con la base de datos" });
+        console.error(error);
+        res.status(500).json({ error: "Error en indicadores" });
+    }
+});
+
+// 2. Datos para la tabla de registros
+app.get('/api/avaluos', async (req, res) => {
+    try {
+        // Traemos los últimos 10 registros reales
+        const [filas] = await db.query(`
+            SELECT 
+                id, 
+                fechaRegistro, 
+                fecha_limite_entrega, 
+                estado 
+            FROM avaluoenntity 
+            ORDER BY id DESC 
+            LIMIT 10
+        `);
+        res.json(filas);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Error en listado" });
     }
 });
 

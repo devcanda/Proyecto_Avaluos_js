@@ -1,5 +1,17 @@
 {
-  "dependencies": {
-    "bootstrap": "^5.3.8"
+  "name": "proyecto_avaluos_js",
+  "version": "1.0.0",
+  "description": "Orquestador del proyecto Full-Stack",
+  "main": "index.js",
+  "scripts": {
+    "api": "cd api-avaluos && npm run dev",
+    "app": "cd app-avaluos && npm run dev",
+    "dev": "concurrently \"npm run api\" \"npm run app\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
   }
 }
