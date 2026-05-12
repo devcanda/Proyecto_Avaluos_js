@@ -100,6 +100,27 @@ app.put('/api/avaluos/:id/finalizar', async (req, res) => {
     }
 });
 
+// 5. NUEVO ENDPOINT: Reactivar Avalúo (Volver a Activo)
+app.put('/api/avaluos/:id/reactivar', async (req, res) => {
+    try {
+        const { id } = req.params;
+        // Lo devolvemos al estado 'Activo'
+        const [resultado] = await db.query(
+            'UPDATE avaluoenntity SET estado = "Activo" WHERE id = ?',
+            [id]
+        );
+
+        if (resultado.affectedRows === 0) {
+            return res.status(404).json({ error: "No se encontró el avalúo." });
+        }
+
+        res.json({ mensaje: "Avalúo reactivado correctamente." });
+    } catch (error) {
+        console.error("Error al reactivar:", error);
+        res.status(500).json({ error: "Error interno del servidor." });
+    }
+});
+
 const PORT = 3000;
 app.listen(PORT, () => {
     console.log(`Servidor Backend corriendo en http://localhost:${PORT}`);

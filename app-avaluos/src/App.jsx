@@ -4,16 +4,12 @@ function App() {
   const [kpis, setKpis] = useState({ pendientes: 0, enProceso: 0, atrasados: 0 });
   const [avaluos, setAvaluos] = useState([]);
   
-  // ESTADOS PARA UI
   const [busqueda, setBusqueda] = useState("");
   const [fechaVisitaFiltro, setFechaVisitaFiltro] = useState("");
   const [paginaActual, setPaginaActual] = useState(1);
   const registrosPorPagina = 10;
+  const [filtroKpi, setFiltroKpi] = useState(null);
 
-  // NUEVO ESTADO: Filtro por Tarjetas KPI
-  const [filtroKpi, setFiltroKpi] = useState(null); // Puede ser 'Pendientes', 'En Proceso', 'Atrasados'
-
-  // ESTADOS PARA EL MODAL
   const [mostrarModal, setMostrarModal] = useState(false);
   const [avaluoEdit, setAvaluoEdit] = useState(null);
   const [nuevaFechaLimite, setNuevaFechaLimite] = useState("");
@@ -36,34 +32,34 @@ function App() {
     cargarDatos();
   }, []);
 
-  // FUNCION PARA ACTIVAR/DESACTIVAR EL FILTRO DE LAS TARJETAS
   const toggleFiltroKpi = (tipo) => {
     if (filtroKpi === tipo) {
-      setFiltroKpi(null); // Si ya estaba oprimido, lo suelta
+      setFiltroKpi(null);
     } else {
-      setFiltroKpi(tipo); // Si no, lo oprime y aplica el filtro
+      setFiltroKpi(tipo);
       setPaginaActual(1);
     }
   };
 
-  // FUNCION PARA CALCULAR EL ESTADO INTELIGENTE DE LA COLUMNA
-  const obtenerEstadoSLA = (fecha_limite) => {
-    if (!fecha_limite) return { texto: 'Pendiente', color: 'bg-info text-dark' };
-    const fecha = fecha_limite.substring(0, 10);
+  // LÓGICA INTELIGENTE ACTUALIZADA (Ahora detecta si está Finalizado)
+  const obtenerEstadoSLA = (av) => {
+    if (av.estado === 'Finalizado') return { texto: 'Finalizado', color: 'bg-success' }; // Verde para entregados
+    if (av.estado === 'Inactivo') return { texto: 'Inactivo', color: 'bg-secondary' };
+    
+    // Si sigue Activo, evaluamos los tiempos
+    if (!av.fecha_limite_entrega) return { texto: 'Pendiente', color: 'bg-info text-dark' };
+    const fecha = av.fecha_limite_entrega.substring(0, 10);
     if (fecha < hoy) return { texto: 'Atrasado', color: 'bg-danger' };
     return { texto: 'En Proceso', color: 'bg-warning text-dark' };
   };
 
-  // LÓGICA DE FILTRADO (Ahora incluye el filtro de los KPIs)
   const avaluosFiltrados = avaluos.filter((av) => {
-    // 1. Filtro de Texto
     const termino = busqueda.toLowerCase();
     const coincideTexto = 
       av.id.toString().includes(termino) ||
       (av.solicitante && av.solicitante.toLowerCase().includes(termino)) ||
       (av.documento && av.documento.toString().includes(termino));
 
-    // 2. Filtro de Fecha Visita
     let coincideFecha = true;
     if (fechaVisitaFiltro && av.fecha_vis_formato) {
         coincideFecha = av.fecha_vis_formato === fechaVisitaFiltro;
@@ -71,14 +67,14 @@ function App() {
         coincideFecha = false;
     }
 
-    // 3. NUEVO: Filtro de Tarjetas KPI
     let coincideKpi = true;
+    // Solo filtramos los que siguen "Activos" para los KPIs
     if (filtroKpi === 'Pendientes') {
-      coincideKpi = !av.fecha_limite_entrega;
+      coincideKpi = av.estado === 'Activo' && !av.fecha_limite_entrega;
     } else if (filtroKpi === 'Atrasados') {
-      coincideKpi = av.fecha_limite_entrega && av.fecha_limite_entrega.substring(0, 10) < hoy;
+      coincideKpi = av.estado === 'Activo' && av.fecha_limite_entrega && av.fecha_limite_entrega.substring(0, 10) < hoy;
     } else if (filtroKpi === 'En Proceso') {
-      coincideKpi = av.fecha_limite_entrega && av.fecha_limite_entrega.substring(0, 10) >= hoy;
+      coincideKpi = av.estado === 'Activo' && av.fecha_limite_entrega && av.fecha_limite_entrega.substring(0, 10) >= hoy;
     }
 
     return coincideTexto && coincideFecha && coincideKpi;
@@ -102,12 +98,30 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fecha_limite: nuevaFechaLimite })
       });
-
       if (respuesta.ok) {
         setMostrarModal(false);
         cargarDatos();
       } else {
-        alert("Hubo un problema al guardar. Intenta de nuevo.");
+        alert("Hubo un problema al guardar.");
+      }
+    } catch (error) {
+      alert("Error de conexión con el servidor.");
+    }
+  };
+
+  // NUEVA FUNCIÓN: ENVIAR ORDEN DE REACTIVAR
+  const reactivarAvaluo = async (id) => {
+    const confirmar = window.confirm("¿Deseas reactivar este avalúo? Volverá a los contadores de tiempo para que le asignes una nueva fecha.");
+    if (!confirmar) return;
+
+    try {
+      const respuesta = await fetch(`http://localhost:3000/api/avaluos/${id}/reactivar`, {
+        method: 'PUT'
+      });
+      if (respuesta.ok) {
+        cargarDatos();
+      } else {
+        alert("Hubo un problema al reactivar.");
       }
     } catch (error) {
       alert("Error de conexión con el servidor.");
@@ -118,30 +132,28 @@ function App() {
     <div className="container-fluid bg-light min-vh-100 p-0">
       
       <style>{`
-        /* ESTILOS DE BOTONES DE ACCIÓN */
         .btn-editar-custom { background-color: #0d6efd; color: white; border: 1px solid #0d6efd; transition: all 0.3s ease; }
         .btn-editar-custom:hover { background-color: white; color: #0d6efd; }
+        
         .btn-tiempo-custom { background-color: #ffc107; color: #000; border: 1px solid #ffc107; transition: all 0.3s ease; }
         .btn-tiempo-custom:hover { background-color: white; color: #ffc107; }
+        
         .btn-pdf-custom { background-color: #dc3545; color: white; border: 1px solid #dc3545; transition: all 0.3s ease; }
         .btn-pdf-custom:hover { background-color: white; color: black; border: 1px solid #dc3545; }
+        
         .btn-nuevo-custom { background-color: #1d429a; color: white; border: 1px solid #1d429a; font-weight: bold; }
         .btn-nuevo-custom:hover { background-color: #153275; color: white; }
 
-        /* NUEVOS ESTILOS INTERACTIVOS PARA LAS TARJETAS KPI */
-        .card-kpi {
-          cursor: pointer;
-          transition: all 0.2s ease-in-out;
-        }
-        .card-kpi:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 8px rgba(0,0,0,0.1) !important;
-        }
-        .card-kpi.kpi-pressed {
-          transform: scale(0.96);
-          box-shadow: inset 0 4px 6px rgba(0,0,0,0.15) !important;
-          opacity: 0.95;
-        }
+        .btn-reactivar-custom { background-color: #6c757d; color: white; border: 1px solid #6c757d; transition: all 0.3s ease; }
+        .btn-reactivar-custom:hover { background-color: white; color: #6c757d; }
+
+        /* Estilo para el nuevo botón de finalizar */
+        .btn-finalizar-custom { background-color: #198754; color: white; border: 1px solid #198754; transition: all 0.3s ease; }
+        .btn-finalizar-custom:hover { background-color: white; color: #198754; }
+
+        .card-kpi { cursor: pointer; transition: all 0.2s ease-in-out; }
+        .card-kpi:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1) !important; }
+        .card-kpi.kpi-pressed { transform: scale(0.96); box-shadow: inset 0 4px 6px rgba(0,0,0,0.15) !important; opacity: 0.95; }
         .kpi-pressed.border-info { background-color: #eaf8fc !important; border-left-width: 8px !important; }
         .kpi-pressed.border-warning { background-color: #fff9e6 !important; border-left-width: 8px !important; }
         .kpi-pressed.border-danger { background-color: #fceeee !important; border-left-width: 8px !important; }
@@ -164,13 +176,9 @@ function App() {
         <div className="col-md-10 p-4">
           <h3 className="mb-4 fw-bold text-secondary">Control de Tiempos</h3>
 
-          {/* TARJETAS KPI (AHORA CON EVENTO onClick Y CLASES DINÁMICAS) */}
           <div className="row mb-4">
             <div className="col-md-4 mb-2">
-              <div 
-                className={`card shadow-sm border-0 border-start border-info border-4 card-kpi ${filtroKpi === 'Pendientes' ? 'kpi-pressed' : ''}`}
-                onClick={() => toggleFiltroKpi('Pendientes')}
-              >
+              <div className={`card shadow-sm border-0 border-start border-info border-4 card-kpi ${filtroKpi === 'Pendientes' ? 'kpi-pressed' : ''}`} onClick={() => toggleFiltroKpi('Pendientes')}>
                 <div className="card-body">
                   <h6 className="text-muted text-uppercase mb-2">Pendientes</h6>
                   <h2 className="fw-bold text-info">{kpis.pendientes}</h2>
@@ -178,10 +186,7 @@ function App() {
               </div>
             </div>
             <div className="col-md-4 mb-2">
-              <div 
-                className={`card shadow-sm border-0 border-start border-warning border-4 card-kpi ${filtroKpi === 'En Proceso' ? 'kpi-pressed' : ''}`}
-                onClick={() => toggleFiltroKpi('En Proceso')}
-              >
+              <div className={`card shadow-sm border-0 border-start border-warning border-4 card-kpi ${filtroKpi === 'En Proceso' ? 'kpi-pressed' : ''}`} onClick={() => toggleFiltroKpi('En Proceso')}>
                 <div className="card-body">
                   <h6 className="text-muted text-uppercase mb-2">En Proceso</h6>
                   <h2 className="fw-bold text-warning">{kpis.enProceso}</h2>
@@ -189,10 +194,7 @@ function App() {
               </div>
             </div>
             <div className="col-md-4 mb-2">
-              <div 
-                className={`card shadow-sm border-0 border-start border-danger border-4 card-kpi ${filtroKpi === 'Atrasados' ? 'kpi-pressed' : ''}`}
-                onClick={() => toggleFiltroKpi('Atrasados')}
-              >
+              <div className={`card shadow-sm border-0 border-start border-danger border-4 card-kpi ${filtroKpi === 'Atrasados' ? 'kpi-pressed' : ''}`} onClick={() => toggleFiltroKpi('Atrasados')}>
                 <div className="card-body">
                   <h6 className="text-muted text-uppercase mb-2">Atrasados</h6>
                   <h2 className="fw-bold text-danger">{kpis.atrasados}</h2>
@@ -252,8 +254,8 @@ function App() {
                   <tbody>
                     {registrosPaginados.length > 0 ? (
                       registrosPaginados.map((av) => {
-                        // AQUÍ REEMPLAZAMOS EL "ACTIVO" ESTÁTICO POR LA LÓGICA INTELIGENTE
-                        const estadoSLA = obtenerEstadoSLA(av.fecha_limite_entrega);
+                        // Enviamos TODO el objeto 'av' para que lea tanto el estado como la fecha
+                        const estadoSLA = obtenerEstadoSLA(av);
 
                         return (
                           <tr key={av.id}>
@@ -264,19 +266,43 @@ function App() {
                             <td>{av.fecha_visita ? new Date(av.fecha_visita).toLocaleDateString() : '-'}</td>
                             <td>
                               {av.fecha_limite_entrega ? 
-                                <span className={`fw-bold ${new Date(av.fecha_limite_entrega) < new Date(hoy) ? 'text-danger' : 'text-success'}`}>
+                                <span className={`fw-bold ${new Date(av.fecha_limite_entrega) < new Date(hoy) && av.estado === 'Activo' ? 'text-danger' : 'text-success'}`}>
                                   {new Date(av.fecha_limite_entrega).toLocaleDateString()}
                                 </span> 
                                 : <span className="text-muted fst-italic">Sin definir</span>}
                             </td>
                             <td>
-                              {/* NUEVA ETIQUETA DE ESTADO DINÁMICA */}
                               <span className={`badge ${estadoSLA.color}`}>{estadoSLA.texto}</span>
                             </td>
                             <td>
+                              {/* Estos dos botones (Editar y PDF) SIEMPRE aparecen */}
                               <button className="btn btn-sm btn-editar-custom me-1" title="Editar Información">✏️</button>
-                              <button className="btn btn-sm btn-tiempo-custom me-1" onClick={() => abrirModalTiempos(av)} title="Asignar Vencimiento">⏲️</button>
-                              <button className="btn btn-sm btn-pdf-custom fw-bold">PDF</button>
+                              <button className="btn btn-sm btn-pdf-custom me-1 fw-bold">PDF</button>
+
+                              {/* Si está ACTIVO, mostramos Cronómetro y Finalizar */}
+                              {av.estado !== 'Finalizado' && (
+                                <>
+                                  <button className="btn btn-sm btn-tiempo-custom me-1" onClick={() => abrirModalTiempos(av)} title="Asignar Vencimiento">⏲️</button>
+                                  <button 
+                                    className="btn btn-sm btn-finalizar-custom fw-bold" 
+                                    onClick={() => finalizarAvaluo(av.id)}
+                                    title="Marcar como Entregado"
+                                  >
+                                    ✅
+                                  </button>
+                                </>
+                              )}
+
+                              {/* Si está FINALIZADO, mostramos el botón de Reactivar */}
+                              {av.estado === 'Finalizado' && (
+                                <button 
+                                  className="btn btn-sm btn-reactivar-custom fw-bold" 
+                                  onClick={() => reactivarAvaluo(av.id)}
+                                  title="Reactivar Avalúo (Modificaciones extra)"
+                                >
+                                  🔄
+                                </button>
+                              )}
                             </td>
                           </tr>
                         );
