@@ -72,17 +72,50 @@ export default function FormularioAvaluo({ setVistaActiva }) {
   // Imágenes
   const handleImageUpload = (e) => {
     const archivos = Array.from(e.target.files);
-    const nuevasPreviews = archivos.map(a => ({ url: URL.createObjectURL(a), nombreOriginal: a.name, titulo: '' }));
+    const nuevasPreviews = archivos.map(a => ({
+      archivoFisico: a, // <-- ESTO ES CLAVE PARA EL BACKEND
+      url: URL.createObjectURL(a),
+      nombreOriginal: a.name,
+      titulo: '' 
+    }));
     setImagenesPreview(prev => [...prev, ...nuevasPreviews]);
   };
   const handleTituloImagen = (i, val) => { const n = [...imagenesPreview]; n[i].titulo = val; setImagenesPreview(n); };
   const eliminarImagen = (i) => setImagenesPreview(prev => prev.filter((_, idx) => idx !== i));
 
   const confirmarGuardadoFinal = async () => {
-    if (window.confirm("¿Estás seguro de que deseas guardar este avalúo y sus anexos de forma definitiva?")) {
-      console.log("DATOS A GUARDAR:", formData);
-      alert("¡Todos los datos (incluidas las nuevas tablas) han sido recolectados! En la próxima fase los enviaremos al backend.");
-      setVistaActiva('dashboard');
+    if (window.confirm("¿Estás seguro de que deseas generar y guardar este avalúo definitivo?")) {
+      
+      // 1. Creamos el paquete especial para enviar archivos
+      const paqueteDatos = new FormData();
+      
+      // 2. Metemos todo el "cerebro" (texto y números) en formato JSON
+      paqueteDatos.append('datosFormulario', JSON.stringify(formData));
+      
+      // 3. Metemos los títulos de las imágenes
+      const titulosImagenes = imagenesPreview.map(img => img.titulo);
+      paqueteDatos.append('titulosImagenes', JSON.stringify(titulosImagenes));
+
+      // 4. Metemos los archivos físicos (las fotos)
+      imagenesPreview.forEach((img) => {
+        paqueteDatos.append('fotos', img.archivoFisico);
+      });
+
+      try {
+        const respuesta = await fetch('http://localhost:3000/api/avaluos/generar-pdf', {
+          method: 'POST',
+          body: paqueteDatos // <-- Ya no enviamos JSON.stringify, enviamos el paquete completo
+        });
+
+        if (respuesta.ok) {
+          alert("¡Avalúo guardado y PDF generado con éxito!");
+          setVistaActiva('dashboard');
+        } else {
+          alert("Hubo un error al procesar el documento.");
+        }
+      } catch (error) {
+        alert("Error de conexión con el servidor.");
+      }
     }
   };
 
