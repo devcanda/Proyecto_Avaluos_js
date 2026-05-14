@@ -121,6 +121,64 @@ app.put('/api/avaluos/:id/reactivar', async (req, res) => {
     }
 });
 
+// 6. NUEVO ENDPOINT: Crear un Nuevo Avalúo (Guardar en MySQL)
+app.post('/api/avaluos', async (req, res) => {
+    try {
+        const datos = req.body;
+        // Obtenemos la fecha actual para el registro
+        const hoy = new Date().toISOString().split('T')[0];
+
+        // Ejecutamos la inserción mapeando los datos de React a tus columnas de MySQL
+        const [resultado] = await db.query(`
+            INSERT INTO avaluoenntity (
+                Solicitante, TipoDeDocumento, NumeroDocumento, Entidad, 
+                Departamento, Municipio, Direccion, Barrio, Sector, Estrato, 
+                TipoDeBien, TipoDeAvaluo, FinalidadDelAvaluo, ObjetoDelAvaluo, 
+                Propietario, NumeroDeEscritura, AspJFecha, NumeroDeNotaria, 
+                matriculainmNumero1, CedulaCatastral,
+                AreaLote, Frente, Fondo, Topografia, 
+                Acueducto, EnergiaElectrica, Alcantarillado, GasNatural,
+                ViasDeAcceso, Transporte, Inseguridad, Ruido, 
+                Latitud, Longitud,
+                EstadoDeLaConstruccion, Edad, VidaUtil, EstadoDeConservacion,
+                Estructura, MaterialDeEstructura, Remodelado,
+                PredioAlcobas, PredioBanoPrivado, PredioBanoSocial, PredioCocina, PredioSala, PredioTotalCuposDeParqueo,
+                CVTArea, CVTValorUnitario, CVEArea, CVEValorUnitario,
+                DescripcionGeneral,
+                fechaRegistro, estado
+            ) VALUES (
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
+                ?, ?, ?, 'Activo'
+            )
+        `, [
+            datos.Solicitante, datos.TipoDeDocumento || 1, datos.NumeroDocumento, datos.Entidad,
+            datos.Departamento, datos.Municipio, datos.Direccion, datos.Barrio, datos.Sector, datos.Estrato,
+            datos.TipoDeBien, datos.TipoDeAvaluo, datos.FinalidadDelAvaluo, datos.ObjetoDelAvaluo,
+            datos.Propietario, datos.NumeroDeEscritura, datos.AspJFecha || null, datos.NumeroDeNotaria,
+            datos.matriculainmNumero1, datos.CedulaCatastral,
+            datos.AreaLote, datos.Frente, datos.Fondo, datos.Topografia,
+            datos.Acueducto, datos.EnergiaElectrica, datos.Alcantarillado, datos.GasNatural,
+            datos.ViasDeAcceso, datos.Transporte, datos.Inseguridad, datos.Ruido,
+            datos.Latitud, datos.Longitud,
+            datos.EstadoDeLaConstruccion, datos.Edad, datos.VidaUtil, datos.EstadoDeConservacion,
+            datos.Estructura, datos.MaterialDeEstructura, datos.Remodelado,
+            datos.PredioAlcobas, datos.PredioBanoPrivado, datos.PredioBanoSocial, datos.PredioCocina, datos.PredioSala, datos.PredioTotalCuposDeParqueo,
+            datos.CVTArea, datos.CVTValorUnitario, datos.CVEArea, datos.CVEValorUnitario,
+            datos.DescripcionGeneral,
+            hoy // fechaRegistro
+        ]);
+
+        res.json({ mensaje: "Avalúo guardado exitosamente", id: resultado.insertId });
+    } catch (error) {
+        console.error("Error al guardar el avalúo:", error);
+        res.status(500).json({ error: "Error interno al guardar en la base de datos." });
+    }
+});
+
 const PORT = 3000;
 app.listen(PORT, () => {
     console.log(`Servidor Backend corriendo en http://localhost:${PORT}`);
