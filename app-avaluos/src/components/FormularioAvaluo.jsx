@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 
-// === 1. COMPONENTES DE APOYO ===
 const Field = ({ label, name, type = "text", col = "col-md-3", options = null, formData = {}, onChange }) => {
   const valorSeguro = formData[name] != null ? String(formData[name]) : '';
   return (
@@ -11,9 +10,7 @@ const Field = ({ label, name, type = "text", col = "col-md-3", options = null, f
           <option value="">Seleccione...</option>
           {options.map((o, idx) => {
             const isObj = typeof o === 'object';
-            const val = isObj ? String(o.value) : o;
-            const txt = isObj ? o.label : o;
-            return <option key={idx} value={val}>{txt}</option>;
+            return <option key={idx} value={isObj ? String(o.value) : o}>{isObj ? o.label : o}</option>;
           })}
         </select>
       ) : type === "textarea" ? (
@@ -36,16 +33,16 @@ const Checkbox = ({ label, name, formData = {}, onChange }) => {
   );
 };
 
-// ZONA DE DRAG AND DROP PARA IMÁGENES INDIVIDUALES
+// ZONA DE DRAG AND DROP INTELIGENTE (Recuerda imágenes de BD)
 const DragDropZone = ({ label, icon, imagen, setImagen }) => {
   const handleDrop = (e) => {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) setImagen({ archivoFisico: file, url: URL.createObjectURL(file) });
+    if (file && file.type.startsWith('image/')) setImagen({ archivoFisico: file, url: URL.createObjectURL(file), isOld: false });
   };
   const handleChange = (e) => {
     const file = e.target.files[0];
-    if (file) setImagen({ archivoFisico: file, url: URL.createObjectURL(file) });
+    if (file) setImagen({ archivoFisico: file, url: URL.createObjectURL(file), isOld: false });
   };
   return (
     <div className="col-md-6 mb-3">
@@ -53,9 +50,9 @@ const DragDropZone = ({ label, icon, imagen, setImagen }) => {
       <div 
         onDragOver={(e) => e.preventDefault()} 
         onDrop={handleDrop}
-        onClick={() => document.getElementById(`file-${label}`).click()}
+        onClick={() => { if(!imagen) document.getElementById(`file-${label}`).click() }}
         className="border border-2 border-primary rounded p-2 text-center position-relative shadow-sm" 
-        style={{ borderStyle: 'dashed !important', backgroundColor: '#f8f9fa', cursor: 'pointer', height: '180px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}
+        style={{ borderStyle: 'dashed !important', backgroundColor: '#f8f9fa', cursor: imagen ? 'default' : 'pointer', height: '180px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}
       >
         <input type="file" id={`file-${label}`} className="d-none" accept=".jpg,.jpeg,.png" onChange={handleChange} />
         {imagen ? (
@@ -71,15 +68,11 @@ const DragDropZone = ({ label, icon, imagen, setImagen }) => {
   );
 };
 
-// === 2. COMPONENTE PRINCIPAL ===
 export default function FormularioAvaluo({ setVistaActiva, idEdicion }) {
   const [pasoFormulario, setPasoFormulario] = useState(1);
   const [imagenesPreview, setImagenesPreview] = useState([]);
-  
-  // ESTADOS PARA LAS IMÁGENES DEL PASO 1
   const [fotoFachada, setFotoFachada] = useState(null);
   const [fotoMapa, setFotoMapa] = useState(null);
-  
   const [cargando, setCargando] = useState(false);
 
   const estadoInicial = {
@@ -107,6 +100,17 @@ export default function FormularioAvaluo({ setVistaActiva, idEdicion }) {
         .then(res => res.json())
         .then(data => {
           ['FechaDeVisita', 'FechaDelAvalio', 'AspJFecha'].forEach(f => { if (data[f]) data[f] = data[f].substring(0, 10); });
+          
+          // Cargar las imágenes guardadas si existen
+          if (data.foto_fachada) setFotoFachada({ url: `http://localhost:3000/uploads/${data.foto_fachada}`, filename: data.foto_fachada, isOld: true });
+          if (data.foto_mapa) setFotoMapa({ url: `http://localhost:3000/uploads/${data.foto_mapa}`, filename: data.foto_mapa, isOld: true });
+          
+          let anexosGuardados = [];
+          if (data.fotos_anexos) {
+              try { anexosGuardados = JSON.parse(data.fotos_anexos); } catch(e){}
+          }
+          setImagenesPreview(anexosGuardados.map(a => ({ url: `http://localhost:3000/uploads/${a.filename}`, filename: a.filename, titulo: a.titulo, isOld: true })));
+
           setFormData({ ...estadoInicial, ...data, acabadosEdificacion: Array.isArray(data.acabadosEdificacion) ? data.acabadosEdificacion : [], ofertasMercado: Array.isArray(data.ofertasMercado) ? data.ofertasMercado : [] });
           setCargando(false);
         }).catch(err => { console.error(err); setCargando(false); });
@@ -129,26 +133,43 @@ export default function FormularioAvaluo({ setVistaActiva, idEdicion }) {
 
   const handleImageUpload = (e) => {
     const archivos = Array.from(e.target.files);
-    setImagenesPreview(prev => [...prev, ...archivos.map(a => ({ archivoFisico: a, url: URL.createObjectURL(a), titulo: '' }))]);
+    setImagenesPreview(prev => [...prev, ...archivos.map(a => ({ archivoFisico: a, url: URL.createObjectURL(a), titulo: '', isOld: false }))]);
   };
-  const eliminarImagen = (i) => setImagenesPreview(prev => prev.filter((_, idx) => idx !== i));
+  const eliminarImagen = (idx) => setImagenesPreview(prev => prev.filter((_, i) => i !== idx));
 
+  // LÓGICA INTELIGENTE DE GUARDADO DE IMÁGENES
   const confirmarGuardadoFinal = async () => {
     if (!window.confirm("¿Confirmas los datos de este avalúo?")) return;
+    
+    const datosGuardar = { ...formData };
+    
+    // Si la imagen es vieja y no la borramos, mantenemos el texto en la DB. Si se borró, mandamos null
+    if (fotoFachada && fotoFachada.isOld) datosGuardar.foto_fachada = fotoFachada.filename;
+    else if (!fotoFachada) datosGuardar.foto_fachada = null;
+
+    if (fotoMapa && fotoMapa.isOld) datosGuardar.foto_mapa = fotoMapa.filename;
+    else if (!fotoMapa) datosGuardar.foto_mapa = null;
+
     const paquete = new FormData();
-    paquete.append('datosFormulario', JSON.stringify(formData));
+    paquete.append('datosFormulario', JSON.stringify(datosGuardar));
     
-    // Adjuntamos las imágenes específicas (En el futuro las guardaremos en la BD)
-    if (fotoFachada) paquete.append('fotos', fotoFachada.archivoFisico);
-    if (fotoMapa) paquete.append('fotos', fotoMapa.archivoFisico);
+    // Solo enviamos el archivo físico si es nuevo
+    if (fotoFachada && !fotoFachada.isOld) paquete.append('fotoFachada', fotoFachada.archivoFisico);
+    if (fotoMapa && !fotoMapa.isOld) paquete.append('fotoMapa', fotoMapa.archivoFisico);
     
-    // Adjuntamos las imágenes generales del paso 4
-    imagenesPreview.forEach(img => { if (img.archivoFisico) paquete.append('fotos', img.archivoFisico); });
+    // MetaData para que el backend sepa cuáles conservar y cuáles son nuevas
+    const metaAnexos = imagenesPreview.map(img => {
+        if (img.isOld) return { tipo: 'viejo', filename: img.filename, titulo: img.titulo };
+        paquete.append('fotosAnexos', img.archivoFisico);
+        return { tipo: 'nuevo', titulo: img.titulo };
+    });
+    paquete.append('metaAnexos', JSON.stringify(metaAnexos));
 
     try {
       const url = idEdicion ? `http://localhost:3000/api/avaluos/${idEdicion}` : 'http://localhost:3000/api/avaluos';
       const res = await fetch(url, { method: idEdicion ? 'PUT' : 'POST', body: paquete });
       if (res.ok) { alert("¡Guardado correctamente!"); setVistaActiva('dashboard'); }
+      else { alert("Ocurrió un error al guardar en la base de datos."); }
     } catch (e) { alert("Error de conexión."); }
   };
 
@@ -209,7 +230,6 @@ export default function FormularioAvaluo({ setVistaActiva, idEdicion }) {
             <Field label="Barrio" name="Barrio" formData={formData} onChange={handleInputChange} />
             <Field label="Dirección" name="Direccion" col="col-md-6" formData={formData} onChange={handleInputChange} />
             
-            {/* NUEVA ZONA DRAG & DROP FACHADA */}
             <DragDropZone label="Foto de Fachada" icon="📷" imagen={fotoFachada} setImagen={setFotoFachada} />
 
             <Field label="Matrícula Tipo 1" name="matriculainmTipo1" formData={formData} onChange={handleInputChange} />
@@ -277,7 +297,6 @@ export default function FormularioAvaluo({ setVistaActiva, idEdicion }) {
             <Field label="Latitud (GPS)" name="Latitud" formData={formData} onChange={handleInputChange} />
             <Field label="Longitud (GPS)" name="Longitud" formData={formData} onChange={handleInputChange} />
 
-            {/* NUEVA ZONA DRAG & DROP MAPA */}
             <DragDropZone label="Captura de Mapa (GPS)" icon="🗺️" imagen={fotoMapa} setImagen={setFotoMapa} />
 
             <div className="col-12 mt-3 d-flex flex-wrap gap-3">

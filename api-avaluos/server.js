@@ -12,10 +12,7 @@ app.use(cors());
 app.use(express.json());
 
 const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 app.use('/uploads', express.static(uploadsDir));
 
 const storage = multer.diskStorage({
@@ -25,9 +22,15 @@ const storage = multer.diskStorage({
     cb(null, uniqueSuffix + path.extname(file.originalname));
   }
 });
-const upload = multer({ storage: storage });
 
-// === ENDPOINTS DASHBOARD Y SLA ===
+// NUEVO: Separador inteligente de archivos
+const uploadFiles = multer({ storage: storage }).fields([
+    { name: 'fotoFachada', maxCount: 1 },
+    { name: 'fotoMapa', maxCount: 1 },
+    { name: 'fotosAnexos', maxCount: 20 }
+]);
+
+
 app.get('/api/dashboard', async (req, res) => {
     try {
         const hoy = new Date().toISOString().split('T')[0];
@@ -68,12 +71,29 @@ app.get('/api/avaluos/:id', async (req, res) => {
     } catch (error) { res.status(500).json({ error: "Error al obtener el avalúo" }); }
 });
 
-// === CREAR AVALÚO (SOLO GUARDAR EN DB) ===
-app.post('/api/avaluos', upload.array('fotos', 20), async (req, res) => {
+// === CREAR AVALÚO ===
+app.post('/api/avaluos', uploadFiles, async (req, res) => {
     try {
         const datos = JSON.parse(req.body.datosFormulario);
         delete datos.acabadosEdificacion; delete datos.ofertasMercado;
         datos.estado = 'Activo'; datos.fechaRegistro = new Date().toISOString().split('T')[0];
+
+        // Recolectar rutas de imágenes nuevas
+        if (req.files['fotoFachada']) datos.foto_fachada = req.files['fotoFachada'][0].filename;
+        if (req.files['fotoMapa']) datos.foto_mapa = req.files['fotoMapa'][0].filename;
+        
+        const metaAnexos = JSON.parse(req.body.metaAnexos || '[]');
+        let anexosFinales = [];
+        let nuevosArchivos = req.files['fotosAnexos'] || [];
+        let nuevosIndex = 0;
+
+        for (let meta of metaAnexos) {
+            if (meta.tipo === 'nuevo' && nuevosArchivos[nuevosIndex]) {
+                anexosFinales.push({ filename: nuevosArchivos[nuevosIndex].filename, titulo: meta.titulo });
+                nuevosIndex++;
+            }
+        }
+        datos.fotos_anexos = JSON.stringify(anexosFinales);
 
         const columnas = Object.keys(datos);
         const placeholders = columnas.map(() => '?').join(', ');
@@ -82,16 +102,33 @@ app.post('/api/avaluos', upload.array('fotos', 20), async (req, res) => {
         const query = `INSERT INTO avaluoenntity (${columnas.join(', ')}) VALUES (${placeholders})`;
         const [resultado] = await db.query(query, valores);
         res.json({ mensaje: "Guardado correctamente", id: resultado.insertId });
-    } catch (error) {
-        console.error(error); res.status(500).json({ error: "Error de SQL" });
-    }
+
+    } catch (error) { console.error(error); res.status(500).json({ error: "Error al guardar." }); }
 });
 
-// === ACTUALIZAR AVALÚO (SOLO GUARDAR EN DB) ===
-app.put('/api/avaluos/:id', upload.array('fotos', 20), async (req, res) => {
+// === ACTUALIZAR AVALÚO ===
+app.put('/api/avaluos/:id', uploadFiles, async (req, res) => {
     try {
         const datos = JSON.parse(req.body.datosFormulario);
         delete datos.acabadosEdificacion; delete datos.ofertasMercado; delete datos.id; 
+
+        if (req.files['fotoFachada']) datos.foto_fachada = req.files['fotoFachada'][0].filename;
+        if (req.files['fotoMapa']) datos.foto_mapa = req.files['fotoMapa'][0].filename;
+
+        const metaAnexos = JSON.parse(req.body.metaAnexos || '[]');
+        let anexosFinales = [];
+        let nuevosArchivos = req.files['fotosAnexos'] || [];
+        let nuevosIndex = 0;
+
+        for (let meta of metaAnexos) {
+            if (meta.tipo === 'viejo') {
+                anexosFinales.push({ filename: meta.filename, titulo: meta.titulo });
+            } else if (meta.tipo === 'nuevo' && nuevosArchivos[nuevosIndex]) {
+                anexosFinales.push({ filename: nuevosArchivos[nuevosIndex].filename, titulo: meta.titulo });
+                nuevosIndex++;
+            }
+        }
+        datos.fotos_anexos = JSON.stringify(anexosFinales);
 
         const columnas = Object.keys(datos);
         const valores = Object.values(datos);
@@ -100,17 +137,13 @@ app.put('/api/avaluos/:id', upload.array('fotos', 20), async (req, res) => {
         const query = `UPDATE avaluoenntity SET ${setClause} WHERE id = ?`;
         await db.query(query, [...valores, req.params.id]);
         res.json({ mensaje: "Actualizado correctamente." });
-    } catch (error) {
-        console.error(error); res.status(500).json({ error: "Error de SQL" });
-    }
+
+    } catch (error) { console.error(error); res.status(500).json({ error: "Error de SQL" }); }
 });
 
-// === COMPROBADOR DE ESTADO (Para la barra de carga) ===
-app.get('/api/avaluos/:id/pdf-status', async (req, res) => {
-    res.status(200).json({ status: "OK" });
-});
+app.get('/api/avaluos/:id/pdf-status', async (req, res) => { res.status(200).json({ status: "OK" }); });
 
-// === GENERAR PDF BAJO DEMANDA Y ABRIR PESTAÑA ===
+// === GENERAR PDF CON IMÁGENES ===
 app.get('/api/avaluos/:id/pdf', async (req, res) => {
     try {
         const id = req.params.id;
@@ -118,8 +151,39 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
         if (filas.length === 0) return res.status(404).send("<h2>Avalúo no encontrado</h2>");
         
         const datos = filas[0];
-        const nombreArchivo = `Avaluo_${id}.pdf`; 
-        const rutaPDF = path.join(uploadsDir, nombreArchivo);
+        const rutaPDF = path.join(uploadsDir, `Avaluo_${id}.pdf`);
+
+        // Convertidor de imágenes locales a Base64 para que Puppeteer las lea perfecto
+        const getBase64Image = (filename) => {
+            if (!filename) return '';
+            try {
+                const filepath = path.join(uploadsDir, filename);
+                if (fs.existsSync(filepath)) {
+                    const ext = path.extname(filepath).substring(1) || 'jpg';
+                    return `data:image/${ext};base64,${fs.readFileSync(filepath).toString('base64')}`;
+                }
+            } catch (e) {} return '';
+        };
+
+        const b64Fachada = getBase64Image(datos.foto_fachada);
+        const b64Mapa = getBase64Image(datos.foto_mapa);
+        
+        let anexosHTML = '';
+        if (datos.fotos_anexos) {
+            try {
+                const anexosObj = JSON.parse(datos.fotos_anexos);
+                anexosObj.forEach(anexo => {
+                    const b64 = getBase64Image(anexo.filename);
+                    if (b64) {
+                        anexosHTML += `
+                        <div style="width:48%; display:inline-block; margin-bottom:15px; border:1px solid #ccc; padding:5px; text-align:center; box-sizing: border-box; page-break-inside: avoid;">
+                            <img src="${b64}" style="width:100%; height:220px; object-fit:cover;" />
+                            <div style="background:#eee; font-weight:bold; padding:5px; font-size:10px; text-transform:uppercase;">${anexo.titulo}</div>
+                        </div>`;
+                    }
+                });
+            } catch(e){}
+        }
 
         const htmlPlantilla = `
         <!DOCTYPE html>
@@ -155,11 +219,7 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
                     <p>PERITOS AVALUADORES E INMOBILIARIOS</p>
                     <p style="font-weight: normal;">TULUÁ, VALLE DEL CAUCA</p>
                 </div>
-                <div class="folio-box">
-                    <span style="font-size: 9px; color: #1d429a; font-weight: bold;">RADICADO</span>
-                    <b>#${id}</b>
-                    <span style="font-size: 9px;">${new Date().toLocaleDateString()}</span>
-                </div>
+                <div class="folio-box"><span style="font-size: 9px; color: #1d429a; font-weight: bold;">RADICADO</span><b>#${id}</b><span style="font-size: 9px;">${new Date().toLocaleDateString()}</span></div>
             </div>
 
             <h3 style="text-align: center; color: #333; margin-top: 10px;">INFORME DE AVALÚO ${datos.TipoDeAvaluo ? datos.TipoDeAvaluo.toUpperCase() : ''}</h3>
@@ -198,6 +258,26 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
                 </tr>
             </table>
 
+            <div style="page-break-before: always;"></div>
+            <div class="section-title" style="margin-top:0;">4. REGISTRO FOTOGRÁFICO PRINCIPAL</div>
+            <table style="border:none; margin-top:20px;">
+                <tr>
+                    <td style="border:none; text-align:center;">
+                        <b style="color: #1d429a; font-size:12px;">FACHADA DEL PREDIO</b><br>
+                        ${b64Fachada ? `<img src="${b64Fachada}" style="width:90%; height:250px; object-fit:contain; border:1px solid #ccc; margin-top:10px; padding:5px;"/>` : '<p style="color:gray;">Sin imagen registrada</p>'}
+                    </td>
+                    <td style="border:none; text-align:center;">
+                        <b style="color: #1d429a; font-size:12px;">UBICACIÓN SATELITAL (MAPA)</b><br>
+                        ${b64Mapa ? `<img src="${b64Mapa}" style="width:90%; height:250px; object-fit:contain; border:1px solid #ccc; margin-top:10px; padding:5px;"/>` : '<p style="color:gray;">Sin imagen registrada</p>'}
+                    </td>
+                </tr>
+            </table>
+
+            <div class="section-title">5. ANEXOS FOTOGRÁFICOS DE INTERIORES</div>
+            <div style="width: 100%; display: flex; flex-wrap: wrap; justify-content: space-between;">
+                ${anexosHTML || '<p style="text-align:center; color:gray; width:100%;">No hay fotos anexas registradas.</p>'}
+            </div>
+
             <div style="position: fixed; bottom: -2cm; left: 0; right: 0; text-align: center; border-top: 1px solid #ccc; padding-top: 10px; font-size: 10px; color: #666;">
                 <p style="margin: 0; font-weight: bold; font-size: 12px; color: #333;">Diego Antonio Candamil Rengifo</p>
                 <p style="margin: 2px 0 0 0;">Abogado Especialista / Perito Avaluador - R.N.A. AVAL-94355787</p>
@@ -216,18 +296,9 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
 
     } catch (error) {
         console.error(error);
-        // Pantalla de error amigable en la nueva pestaña
-        res.status(500).send(`
-            <div style="font-family: Arial; padding: 50px; text-align: center;">
-                <h2 style="color: red;">❌ Error al generar el PDF</h2>
-                <p>Ocurrió un problema en el motor de renderizado (Puppeteer).</p>
-                <code style="background: #eee; padding: 10px; display: block; margin-top: 20px;">${error.message}</code>
-            </div>
-        `);
+        res.status(500).send(`<div style="font-family: Arial; padding: 50px; text-align: center;"><h2 style="color: red;">❌ Error al generar el PDF</h2><p>Ocurrió un problema en el motor de renderizado.</p><code style="background: #eee; padding: 10px; display: block; margin-top: 20px;">${error.message}</code></div>`);
     }
 });
 
 const PORT = 3000;
-app.listen(PORT, () => {
-    console.log(`Servidor Backend corriendo en http://localhost:${PORT}`);
-});
+app.listen(PORT, () => { console.log(`Servidor Backend corriendo en http://localhost:${PORT}`); });
