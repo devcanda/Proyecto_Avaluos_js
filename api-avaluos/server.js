@@ -23,12 +23,17 @@ const storage = multer.diskStorage({
   }
 });
 
+// AÑADIDO: 'membrete' para recibir la imagen de las plantillas
 const uploadFiles = multer({ storage: storage }).fields([
     { name: 'fotoFachada', maxCount: 1 },
     { name: 'fotoMapa', maxCount: 1 },
-    { name: 'fotosAnexos', maxCount: 20 }
+    { name: 'fotosAnexos', maxCount: 20 },
+    { name: 'membrete', maxCount: 1 } 
 ]);
 
+// ==========================================
+// RUTAS DEL DASHBOARD Y AVALÚOS (INTACTAS)
+// ==========================================
 app.get('/api/dashboard', async (req, res) => {
     try {
         const hoy = new Date().toISOString().split('T')[0];
@@ -139,8 +144,50 @@ app.put('/api/avaluos/:id', uploadFiles, async (req, res) => {
 app.get('/api/avaluos/:id/pdf-status', async (req, res) => { res.status(200).json({ status: "OK" }); });
 
 
+// ==========================================
+// 🎨 NUEVAS RUTAS: GESTOR DE PLANTILLAS
+// ==========================================
+app.get('/api/plantillas', async (req, res) => {
+    try {
+        const [filas] = await db.query('SELECT * FROM plantillas_pdf ORDER BY es_predeterminada DESC, id DESC');
+        res.json(filas);
+    } catch (error) { res.status(500).json({ error: "Error al obtener plantillas" }); }
+});
+
+app.post('/api/plantillas', uploadFiles, async (req, res) => {
+    try {
+        const datos = JSON.parse(req.body.configuracion);
+        let filename = null;
+        if (req.files['membrete']) filename = req.files['membrete'][0].filename;
+
+        const ajustes = JSON.stringify({ ejeX: datos.ejeX, ejeY: datos.ejeY, escala: datos.escala });
+        const bloques = JSON.stringify(datos.bloquesSeleccionados);
+
+        // Si es la primera plantilla, la hacemos predeterminada
+        const [totales] = await db.query('SELECT COUNT(*) as total FROM plantillas_pdf');
+        const esPredeterminada = totales[0].total === 0 ? 1 : 0;
+
+        await db.query(
+            'INSERT INTO plantillas_pdf (nombre, membrete_url, ajustes_membrete, configuracion_campos, es_predeterminada) VALUES (?, ?, ?, ?, ?)',
+            [datos.nombre, filename, ajustes, bloques, esPredeterminada]
+        );
+        res.json({ mensaje: "Plantilla creada correctamente" });
+    } catch (error) { console.error(error); res.status(500).json({ error: "Error al guardar plantilla" }); }
+});
+
+app.put('/api/plantillas/:id/activa', async (req, res) => {
+    try {
+        // Apagamos todas
+        await db.query('UPDATE plantillas_pdf SET es_predeterminada = 0');
+        // Encendemos la seleccionada
+        await db.query('UPDATE plantillas_pdf SET es_predeterminada = 1 WHERE id = ?', [req.params.id]);
+        res.json({ mensaje: "Plantilla fijada como oficial." });
+    } catch (error) { res.status(500).json({ error: "Error al actualizar." }); }
+});
+
+
 // ==============================================================================
-// 🎯 GENERADOR DE PDF CON EL ORDEN OFICIAL INCORPORADO
+// 🎯 GENERADOR DE PDF - AISLADO: SOLO LA PORTADA (3 IMÁGENES + INFO)
 // ==============================================================================
 app.get('/api/avaluos/:id/pdf', async (req, res) => {
     try {
@@ -150,6 +197,13 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
         
         const datos = filas[0];
         const rutaPDF = path.join(uploadsDir, `Avaluo_${id}.pdf`);
+
+        // Formateador de fechas seguro
+        const formatF = (d) => {
+            if (!d) return '';
+            try { return new Date(d).toISOString().split('T')[0]; } 
+            catch(e) { return d; }
+        };
 
         const getBase64Image = (filename) => {
             if (!filename) return '';
@@ -162,24 +216,17 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
             } catch (e) {} return '';
         };
 
+        // Extrae las imágenes
+        const b64Membrete = getBase64Image('membrete.jpg'); 
         const b64Fachada = getBase64Image(datos.foto_fachada);
         const b64Mapa = getBase64Image(datos.foto_mapa);
-        const b64Membrete = getBase64Image('membrete.jpg'); 
         
-        let anexosHTML = '';
+        let b64TerceraImagen = '';
         if (datos.fotos_anexos) {
             try {
                 const anexosObj = JSON.parse(datos.fotos_anexos);
-                anexosObj.forEach(anexo => {
-                    const b64 = getBase64Image(anexo.filename);
-                    if (b64) {
-                        anexosHTML += `
-                        <div style="width:48%; display:inline-block; margin-bottom:15px; border:1px solid #ccc; padding:5px; text-align:center; box-sizing: border-box; page-break-inside: avoid; background: white;">
-                            <img src="${b64}" style="width:100%; height:220px; object-fit:cover;" />
-                            <div style="background:#f4f6f9; font-weight:bold; padding:6px; font-size:10px; text-transform:uppercase; color:#1a2b4c;">${anexo.titulo || 'ANEXO FOTOGRÁFICO'}</div>
-                        </div>`;
-                    }
-                });
+                // Toma la primera foto de la sección de anexos para el Croquis
+                if(anexosObj.length > 0) b64TerceraImagen = getBase64Image(anexosObj[0].filename);
             } catch(e){}
         }
 
@@ -190,181 +237,78 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
             <meta charset="UTF-8">
             <style>
                 @page { margin: 0; size: letter; }
-                body { font-family: 'Helvetica', 'Arial', sans-serif; color: #333; font-size: 10px; line-height: 1.4; margin: 0; padding: 0; }
+                body { font-family: 'Helvetica', 'Arial', sans-serif; color: #222; margin: 0; padding: 0; }
                 
-                .fondo-membrete { position: fixed; top: 0; left: 0; width: 215.9mm; height: 279.4mm; z-index: -1000; object-fit: fill; }
+                .fondo-membrete { position: absolute; top: 0; left: 0; width: 215.9mm; height: 279.4mm; z-index: -1; object-fit: fill; }
 
-                table.page-layout { width: 100%; border-collapse: collapse; border: none; }
-                table.page-layout > thead > tr > td { height: 4.3cm; border: none; padding: 0; }
-                table.page-layout > tfoot > tr > td { height: 3cm; border: none; padding: 0; }
-                table.page-layout > tbody > tr > td { padding: 0 2cm; border: none; }
+                /* ZONA SEGURA: Ajuste milimétrico para no pisar el membrete */
+                .portada-container { 
+                    padding-top: 4.2cm;  
+                    padding-left: 2.2cm; 
+                    padding-right: 2.2cm; 
+                    padding-bottom: 3.5cm;
+                    height: 279.4mm; 
+                    box-sizing: border-box; 
+                }
 
-                .caja-radicado { border: 2px solid #1a2b4c; padding: 5px 12px; text-align: center; border-radius: 6px; width: 110px; float: right; margin-bottom: 15px; background: white; font-weight: bold; }
-                .titulo-documento { text-align: center; color: #1a2b4c; font-size: 13px; font-weight: bold; text-transform: uppercase; margin-bottom: 15px; clear: both; letter-spacing: 0.5px;}
+                .header-info { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #1a2b4c; padding-bottom: 5px; margin-bottom: 15px; }
+                .titulo-documento { color: #1a2b4c; font-size: 17px; font-weight: 900; letter-spacing: 0.5px; margin:0;}
+                .folio-box { text-align: right; color: #555; font-size: 9px; }
+                .folio-box b { color: #dc3545; font-size: 13px; display: block; margin-top:2px;}
+
+                /* TABLA DE INFO BÁSICA */
+                table.info-basica { width: 100%; border-collapse: collapse; margin-bottom: 15px; background: rgba(255,255,255,0.95); }
+                table.info-basica td { border: 1px solid #e0e0e0; padding: 6px 10px; font-size: 10px; }
+                table.info-basica td.label { background-color: #f4f6f9; color: #1a2b4c; font-weight: bold; width: 15%; text-transform: uppercase; font-size: 8px;}
                 
-                .section-title { background-color: #1a2b4c; color: white; padding: 4px 8px; font-weight: bold; margin-top: 15px; margin-bottom: 8px; font-size: 10px; text-transform: uppercase; page-break-after: avoid; }
+                /* CONTENEDOR DE IMÁGENES */
+                .foto-box { background: white; border: 1px solid #e0e0e0; padding: 5px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);}
+                .foto-titulo { background: #f4f6f9; color: #1a2b4c; padding: 5px; font-size: 9px; font-weight: bold; text-align: center; margin-bottom: 5px; text-transform: uppercase; border-bottom: 1px solid #e0e0e0; }
                 
-                table.data-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; page-break-inside: avoid; background: rgba(255,255,255,0.96); }
-                table.data-table th, table.data-table td { border: 1px solid #dee2e6; padding: 5px 6px; text-align: left; font-size: 9.5px; }
-                table.data-table th { background-color: #f4f6f9; color: #1a2b4c; width: 23%; font-weight: bold; }
-                table.data-table td { width: 27%; color: #444; }
+                .img-fachada { width: 100%; height: 280px; object-fit: contain; }
+                .img-secundaria { width: 100%; height: 210px; object-fit: contain; }
                 
-                .text-area-cell { background: #fafafa; padding: 6px; font-style: italic; color: #555; }
-                .foto-box { background:#f4f6f9; padding:5px; border:1px solid #ccc; font-weight:bold; color:#1a2b4c; font-size:10px; margin-bottom:5px; text-align: center; }
+                .grid-inferior { display: flex; justify-content: space-between; width: 100%; }
+                .columna-mitad { width: 48.5%; }
+
+                .caja-sin-imagen { display: flex; align-items: center; justify-content: center; color: gray; font-style: italic; border: 1px dashed #ccc; background: #fafafa;}
             </style>
         </head>
         <body>
-            
             <img src="${b64Membrete}" class="fondo-membrete" />
+            
+            <div class="portada-container">
+                <div class="header-info">
+                    <h1 class="titulo-documento">INFORME DE AVALÚO<br><span style="font-size:11px; color:#555; font-weight:normal;">${datos.TipoDeAvaluo || 'COMERCIAL'}</span></h1>
+                    <div class="folio-box">RADICADO<br><b>#${id}</b></div>
+                </div>
 
-            <table class="page-layout">
-                <thead><tr><td></td></tr></thead>
-                <tbody>
-                    <tr>
-                        <td>
-                            <div class="caja-radicado">
-                                <span style="font-size: 8px; color: #1a2b4c;">RADICADO</span><br>
-                                <b style="color:#dc3545; font-size:13px;">#${id}</b><br>
-                                <span style="font-size: 8px;">${datos.fechaRegistro ? new Date(datos.fechaRegistro).toLocaleDateString() : ''}</span>
-                            </div>
+                <table class="info-basica">
+                    <tr><td class="label">Solicitante</td><td><b>${datos.Solicitante || 'N/A'}</b></td><td class="label">Fecha</td><td><b>${formatF(datos.FechaDelAvalio)}</b></td></tr>
+                    <tr><td class="label">Dirección</td><td colspan="3"><b>${datos.Direccion || 'N/A'}</b>, ${datos.Municipio || ''} - ${datos.Departamento || ''}</td></tr>
+                </table>
 
-                            <div class="titulo-documento">INFORME TÉCNICO DE AVALÚO<sup>${datos.TipoDeAvaluo || 'COMERCIAL'}</sup></div>
+                <div class="foto-box">
+                    <div class="foto-titulo">FACHADA DEL INMUEBLE</div>
+                    ${b64Fachada ? `<img src="${b64Fachada}" class="img-fachada" />` : '<div class="caja-sin-imagen" style="height:280px;">Sin foto de fachada</div>'}
+                </div>
 
-                            <div class="section-title">1. INFORMACIÓN GENERAL Y DEL SOLICITANTE</div>
-                            <table class="data-table">
-                                <tr><th>Solicitante</th><td colspan="3"><b>${datos.Solicitante || ''}</b></td></tr>
-                                <tr><th>Identificación</th><td>${datos.NumeroDocumento || ''}</td><th>Entidad Solicitante</th><td>${datos.Entidad || ''}</td></tr>
-                                <tr><th>Fecha de Visita</th><td>${datos.FechaDeVisita || ''}</td><th>Fecha del Avalúo</th><td>${datos.FechaDelAvalio || ''}</td></tr>
-                                <tr><th>Finalidad del Avalúo</th><td>${datos.FinalidadDelAvaluo || ''}</td><th>Objeto del Avalúo</th><td>${datos.ObjetoDelAvaluo || ''}</td></tr>
-                            </table>
+                <div class="grid-inferior">
+                    <div class="columna-mitad">
+                        <div class="foto-box">
+                            <div class="foto-titulo">GEOLOCALIZACIÓN (MAPA)</div>
+                            ${b64Mapa ? `<img src="${b64Mapa}" class="img-secundaria" />` : '<div class="caja-sin-imagen" style="height:210px;">Sin foto de mapa</div>'}
+                        </div>
+                    </div>
+                    <div class="columna-mitad">
+                        <div class="foto-box">
+                            <div class="foto-titulo">CROQUIS / ANEXO</div>
+                            ${b64TerceraImagen ? `<img src="${b64TerceraImagen}" class="img-secundaria" />` : '<div class="caja-sin-imagen" style="height:210px;">Sin foto anexa</div>'}
+                        </div>
+                    </div>
+                </div>
 
-                            <div class="section-title">2. UBICACIÓN, ENTORNO Y URBANISMO</div>
-                            <table class="data-table">
-                                <tr><th>Dirección del Predio</th><td colspan="3">${datos.Direccion || ''}</td></tr>
-                                <tr><th>Departamento / Mpio</th><td>${datos.Departamento || ''} / ${datos.Municipio || ''}</td><th>Barrio / Sector</th><td>${datos.Barrio || ''} / ${datos.Sector || ''}</td></tr>
-                                <tr><th>Estrato Socioeconómico</th><td>${datos.Estrato || ''}</td><th>Código DANE / VIS</th><td>${datos.CodigoDane || ''} / ${datos.ViviendaInteresSocial || ''}</td></tr>
-                                <tr><th>Coordenadas Geográficas</th><td colspan="3">Latitud: ${datos.Latitud || ''} &nbsp;|&nbsp; Longitud: ${datos.Longitud || ''}</td></tr>
-                                <tr><th colspan="4" style="text-align:center; background-color:#e9ecef;">Infraestructura de Servicios Públicos en el Sector</th></tr>
-                                <tr><th>Vías de Acceso</th><td>${datos.ViasDeAcceso || ''}</td><th>Andenes / Sardineles</th><td>${datos.Andenes || ''} / ${datos.Sardineles || ''}</td></tr>
-                                <tr><th>Red de Acueducto</th><td>${datos.Acueducto || ''}</td><th>Red de Alcantarillado</th><td>${datos.Alcantarillado || ''}</td></tr>
-                                <tr><th>Energía / Gas Natural</th><td>${datos.EnergiaElectrica || ''} / ${datos.GasNatural || ''}</td><th>Telefonía / Pavimento</th><td>${datos.Telefonia || ''} / ${datos.Pavimentadas || ''}</td></tr>
-                                <tr><th>Uso Predominante Sector</th><td>${datos.UsoActualPredominante || ''}</td><th>Legalidad Sector</th><td>${datos.Legalidad || ''}</td></tr>
-                                <tr><th>Transporte Público</th><td>${datos.Transporte || ''}</td><th>Perspectiva Valorización</th><td>${datos.PerspectivasDeValorizacion || ''}</td></tr>
-                                <tr><th>Observaciones Sector</th><td colspan="3" class="text-area-cell">${datos.SectorObservaciones || 'Ninguna.'}</td></tr>
-                            </table>
-
-                            <div class="section-title">3. ASPECTOS JURÍDICOS Y TITULACIÓN</div>
-                            <table class="data-table">
-                                <tr><th>Propietario Inscrito</th><td colspan="3">${datos.Propietario || ''}</td></tr>
-                                <tr><th>Matrícula Inmobiliaria 1</th><td>${datos.matriculainmNumero1 || ''}</td><th>Matrícula Inmobiliaria 2</th><td>${datos.matriculainmNumero2 || ''}</td></tr>
-                                <tr><th>Cédula Catastral / CHIP</th><td>${datos.CedulaCatastral || ''} / ${datos.Chip || ''}</td><th>Tipo de Propiedad</th><td>${datos.TipoDePropiedad || ''}</td></tr>
-                                <tr><th>Título de Adquisición</th><td colspan="3">Escritura Pública No. ${datos.NumeroDeEscritura || ''} de la Notaría ${datos.NumeroDeNotaria || ''} (${datos.AspMunicipio || ''})</td></tr>
-                                <tr><th>Fecha del Título</th><td>${datos.AspJFecha || ''}</td><th>Licencia de Construcción</th><td>${datos.LicenciaDeConstruccion || ''}</td></tr>
-                                <tr><th>Coef. de Copropiedad</th><td>${datos.CoeficienteDeCopropiedad || ''}</td><th>Tipo de Bien</th><td>${datos.TipoDeBien || ''}</td></tr>
-                                <tr><th>Descripción Jurídica</th><td colspan="3" class="text-area-cell">${datos.DescripcionGeneral || 'No registra observaciones adicionales.'}</td></tr>
-                            </table>
-
-                            <div class="section-title">4. CARACTERÍSTICAS FÍSICAS, ÁREAS Y NORMATIVIDAD</div>
-                            <table class="data-table">
-                                <tr><th>Área Terreno (Formulario)</th><td>${datos.AreaLote || '0'} M²</td><th>Forma Geométrica</th><td>${datos.Forma || ''}</td></tr>
-                                <tr><th>Topografía del Lote</th><td>${datos.Topografia || ''}</td><th>Frente x Fondo (Mts)</th><td>${datos.Frente || '0'} x ${datos.Fondo || '0'} (Relación: ${datos.RelacionFrenteFondo || 'N/A'})</td></tr>
-                                <tr><th>Decreto / Norma POT</th><td>${datos.DecretoAcuerdo || ''}</td><th>Uso Principal Permitido</th><td>${datos.UsoPrincipal || ''}</td></tr>
-                                <tr><th>Altura Permitida</th><td>${datos.AlturaPermitida || ''}</td><th>Antejardín / Aislamiento</th><td>${datos.Antejardin || ''} / L: ${datos.AislamientoLateral || ''} P: ${datos.AislamientoPosterior || ''}</td></tr>
-                                <tr><th>Índice Ocupación / Const.</th><td>${datos.IndiceDeOcupacion || ''} / ${datos.IndiceDeConstruccion || ''}</td><th>Área Valorada Final</th><td>${datos.AreaValorada || ''} M²</td></tr>
-                                <tr><th>Área Medida Inspección</th><td>${datos.AreaMedidaEnLaInspeccion || ''} M²</td><th>Área Registrada Títulos</th><td>${datos.AreaRegistradaEnTitulo || ''} M²</td></tr>
-                                <tr><th>Área Catastral / Licencia</th><td>${datos.AreaCatastral || ''} / ${datos.AreaLicenciaDeConstruccion || ''} M²</td><th>Área susceptible Legalizar</th><td>${datos.AreaSusceptibleDeLegalizacion || ''} M²</td></tr>
-                                <tr><th>Observaciones de Áreas</th><td colspan="3" class="text-area-cell">${datos.AreaValoradaObservaciones || 'Sin novedades.'}</td></tr>
-                            </table>
-
-                            <div class="section-title">5. ELEMENTOS ESTRUCTURALES Y ESPECIFICACIONES CONSTRUCTIVAS</div>
-                            <table class="data-table">
-                                <tr><th>Estado de Construcción</th><td>${datos.EstadoDeLaConstruccion || ''}</td><th>Avance de Obra (%)</th><td>${datos.AvanceEnConstruccion || ''} %</td></tr>
-                                <tr><th>Estado de Conservación</th><td>${datos.EstadoDeConservacion || ''}</td><th>Número de Pisos / Sótanos</th><td>Pisos: ${datos.NoDePisosDelInmueble || '0'} | Sótanos: ${datos.NumeroDeSotanos || '0'}</td></tr>
-                                <tr><th>Año de Construcción / Edad</th><td>${datos.YearDeConstruccion || ''} / ${datos.Edad || '0'} Años</td><th>Vida Útil / Remanente</th><td>Útil: ${datos.VidaUtil || ''} | Remanente: ${datos.VidaRemanente || ''}</td></tr>
-                                <tr><th>Sistema Estructural</th><td>${datos.Estructura || ''}</td><th>Material Estructura</th><td>${datos.MaterialDeEstructura || ''}</td></tr>
-                                <tr><th>Estado General Estructura</th><td>${datos.EstructuraEstado || ''}</td><th>Ajuste Sismorresistente</th><td>${datos.AjusteSismorresistente || ''}</td></tr>
-                                <tr><th>Estructura Reforzada</th><td>${datos.EstructuraReforzada || ''}</td><th>Daños o Fisuras Previas</th><td>${datos.DanosPrevios || ''}</td></tr>
-                                <tr><th>Tipo de Cubierta</th><td>${datos.Cubierta || ''}</td><th>Fachada / Metros Fachada</th><td>${datos.Fachada || ''} (${datos.TipoDeFachadaEnMetros || '0'} Mts)</td></tr>
-                                <tr><th>Iluminación / Ventilación</th><td>${datos.Iluminacion || ''} / ${datos.Ventilacion || ''}</td><th>Irregularidad Planta / Altura</th><td>P: ${datos.IrregularidadPlanta || ''} | A: ${datos.IrregularidadAltura || ''}</td></tr>
-                                <tr><th>Material de Construcción</th><td colspan="3">${datos.MaterialDeConstruccion || ''}</td></tr>
-                                <tr><th>Comentarios de Estructura</th><td colspan="3" class="text-area-cell">${datos.ComentariosDeLaEstructura || 'Estructura estable en condiciones normales.'}</td></tr>
-                            </table>
-
-                            <div class="section-title">6. DETALLE DE ACABADOS Y DEPENDENCIAS DEL INMUEBLE</div>
-                            <table class="data-table">
-                                <tr style="background-color:#f4f6f9; text-align:center; font-weight:bold; color:#1a2b4c;"><td>ELEMENTO</td><td>CALIDAD</td><td>ESTADO</td><td>ELEMENTO</td><td>CALIDAD</td><td>ESTADO</td></tr>
-                                <tr><th>Muros</th><td>${datos.MurosCalidad || ''}</td><td>${datos.MurosEstado || ''}</td><th>Pisos</th><td>${datos.PisosCalidad || ''}</td><td>${datos.PisosEstado || ''}</td></tr>
-                                <tr><th>Techos</th><td>${datos.TechosCalidad || ''}</td><td>${datos.TechosEstado || ''}</td><th>Cocina</th><td>${datos.CocinaCalidad || ''}</td><td>${datos.CocinaEstado || ''}</td></tr>
-                                <tr><th>Carpintería Metálica</th><td>${datos.CarpinteriaMetalicaCalidad || ''}</td><td>${datos.CarpinteriaMetalicaEstado || ''}</td><th>Carpintería Madera</th><td>${datos.CarpinteriaEnMaderaCalidad || ''}</td><td>${datos.CarpinteriaEnMaderaEstado || ''}</td></tr>
-                                <tr><th>Baños</th><td>${datos.BanosCalidad || ''}</td><td>${datos.BanosEstado || ''}</td><td colspan="3" style="background:#f4f6f9;"></td></tr>
-                                <tr><th colspan="6" style="text-align:center; background-color:#e9ecef;">Distribución Interna de Dependencias</th></tr>
-                                <tr>
-                                    <td colspan="6" style="padding:8px; line-height:1.6;">
-                                        <b>Servicios Conectados:</b> Acueducto: ${datos.PredioAcueducto || 'NO'} | Energía: ${datos.PredioEnergiaElectrica || 'NO'} | Alcantarillado: ${datos.PredioAlcantarillado || 'NO'} | Gas Natural: ${datos.PredioGasNatural || 'NO'} | Telefonía: ${datos.PredioTelefonia || 'NO'}<br>
-                                        <b>Dependencias:</b> Alcobas: ${datos.PredioAlcobas || '0'} | Baños Privados: ${datos.PredioBanoPrivado || '0'} | Baños Sociales: ${datos.PredioBanoSocial || '0'} | Cocinas: ${datos.PredioCocina || '0'} | Salas: ${datos.PredioSala || '0'} | Comedor: ${datos.PredioComedor || '0'} | Zona de Ropas: ${datos.PredioZonaDeRopas || '0'} | Estudio: ${datos.PredioEstudio || '0'} | Balcón: ${datos.PredioBalcon || '0'} | Terraza: ${datos.PredioTerraza || '0'} | Jardín: ${datos.PredioJardin || '0'} | Closets: ${datos.PredioCloset || '0'}<br>
-                                        <b>Áreas de Servicio y Garajes:</b> Cupos de Parqueo: ${datos.PredioTotalCuposDeParqueo || '0'} | Bodega: ${datos.PredioBodega || 'NO'} | Depósito: ${datos.PredioDeposito || 'NO'} | Oficina: ${datos.PredioOficina || 'NO'} | Local Comercial: ${datos.PredioLocal || 'NO'}
-                                    </td>
-                                </tr>
-                            </table>
-
-                            <div class="section-title">7. DOTACIÓN COMUNAL Y ADMINISTRACIÓN</div>
-                            <table class="data-table">
-                                <tr><th>Cuota de Administración</th><td>${datos.DCValorAdmon || 'No aplica'}</td><th>Vigilancia Privada</th><td>${datos.DCVigilanciaPrivada || 'NO'}</td></tr>
-                                <tr><th>Número de Ascensores</th><td>${datos.DCAscensores || '0'}</td><th>Otros Elementos</th><td>${datos.DCOtros || 'Ninguno'}</td></tr>
-                            </table>
-
-                            <div class="section-title">8. ANÁLISIS DE MERCADO E INVESTIGACIÓN DE OFERTAS</div>
-                            <table class="data-table">
-                                <tr><th>Tiempo Comercialización</th><td>${datos.TiempoEsperadoDeComercializacion || ''}</td><th>Comportamiento Oferta/Demanda</th><td>${datos.ComportamientoOfertayDemanda || ''}</td></tr>
-                                <tr><th>Actualidad Edificadora</th><td colspan="3">${datos.ActualidadEdificadora || ''}</td></tr>
-                            </table>
-
-                            <div class="section-title">9. LIQUIDACIÓN DE VALORES Y CERTIFICACIÓN FINAL</div>
-                            <table class="data-table" style="margin-bottom:25px;">
-                                <tr style="text-align: center; background-color: #e9ecef; font-weight:bold; color:#1a2b4c;"><th>ÍTEM DE CÁLCULO</th><th>ÁREA VALORADA (M²)</th><th>VALOR UNITARIO COMERCIAL</th><th>VALOR TOTAL LIQUIDADO</th></tr>
-                                <tr>
-                                    <th>Valor del Terreno</th><td style="text-align:center;">${datos.CVTArea || '0'} M²</td>
-                                    <td style="text-align:center;">$ ${Number(datos.CVTValorUnitario || 0).toLocaleString('es-CO')}</td>
-                                    <td style="text-align:center; color: #198754; font-weight: bold;">$ ${(Number(datos.CVTArea || 0) * Number(datos.CVTValorUnitario || 0)).toLocaleString('es-CO')}</td>
-                                </tr>
-                                <tr>
-                                    <th>Valor de la Construcción</th><td style="text-align:center;">${datos.CVEArea || '0'} M²</td>
-                                    <td style="text-align:center;">$ ${Number(datos.CVEValorUnitario || 0).toLocaleString('es-CO')}</td>
-                                    <td style="text-align:center; color: #198754; font-weight: bold;">$ ${(Number(datos.CVEArea || 0) * Number(datos.CVEValorUnitario || 0)).toLocaleString('es-CO')}</td>
-                                </tr>
-                                <tr style="background-color: #f4f6f9;">
-                                    <th colspan="3" style="text-align: right; font-size:11px; color:#1a2b4c;">VALOR COMERCIAL TOTAL DEL INMUEBLE (GRAN TOTAL):</th>
-                                    <td style="text-align:center; color: #198754; font-weight: bold; font-size: 13px; border:2px solid #1a2b4c;">$ ${((Number(datos.CVTArea || 0) * Number(datos.CVTValorUnitario || 0)) + (Number(datos.CVEArea || 0) * Number(datos.CVEValorUnitario || 0))).toLocaleString('es-CO')}</td>
-                                </tr>
-                                <tr><th>Diagnóstico y Conclusiones</th><td colspan="3" class="text-area-cell">${datos.DVRDiagnostico || 'Inmueble tasado bajo las normas metodológicas de la lonja de propiedad raíz aplicables para Colombia.'}</td></tr>
-                            </table>
-
-                            <div style="page-break-before: always;"></div>
-                            
-                            <div class="section-title" style="margin-top:0;">10. REGISTRO FOTOGRÁFICO DE PORTADA</div>
-                            <table style="width: 100%; border:none; margin-top:10px; background: transparent;">
-                                <tr>
-                                    <td style="border:none; width:50%; padding:10px; vertical-align: top;">
-                                        <div class="foto-box">FACHADA GENERAL DEL INMUEBLE</div>
-                                        ${b64Fachada ? `<img src="${b64Fachada}" style="width:100%; height:240px; object-fit:contain; border:1px solid #ccc; background: white; padding:4px;"/>` : '<div style="height:240px; border:1px dashed #ccc; display:flex; align-items:center; justify-content:center; color:gray; background: white;">Fotografía no cargada</div>'}
-                                    </td>
-                                    <td style="border:none; width:50%; padding:10px; vertical-align: top;">
-                                        <div class="foto-box">GEOLOCALIZACIÓN SATELITAL (GOOGLE MAPS)</div>
-                                        ${b64Mapa ? `<img src="${b64Mapa}" style="width:100%; height:240px; object-fit:contain; border:1px solid #ccc; background: white; padding:4px;"/>` : '<div style="height:240px; border:1px dashed #ccc; display:flex; align-items:center; justify-content:center; color:gray; background: white;">Captura de mapa no cargada</div>'}
-                                    </td>
-                                </tr>
-                            </table>
-
-                            <div class="section-title">11. ANEXOS FOTOGRÁFICOS COMPLEMENTARIOS (INTERIORES)</div>
-                            <div style="width: 100%; display: flex; flex-wrap: wrap; justify-content: space-between; background:transparent;">
-                                ${anexosHTML || '<p style="text-align:center; color:gray; width:100%; margin-top:20px; background: white; padding:15px; border:1px solid #ccc;">No se adjuntaron registros fotográficos adicionales para recintos internos.</p>'}
-                            </div>
-                        </td>
-                    </tr>
-                </tbody>
-                <tfoot><tr><td></td></tr></tfoot>
-            </table>
-
+            </div>
         </body>
         </html>
         `;
@@ -372,22 +316,10 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
         const browser = await puppeteer.launch({ headless: 'new' });
         const page = await browser.newPage();
         await page.setContent(htmlPlantilla, { waitUntil: 'networkidle0' });
-        
-        await page.pdf({ 
-            path: rutaPDF, 
-            format: 'Letter', 
-            printBackground: true,
-            displayHeaderFooter: false, 
-            margin: { top: '0', bottom: '0', left: '0', right: '0' }
-        });
-        
+        await page.pdf({ path: rutaPDF, format: 'Letter', printBackground: true, margin: { top: '0', bottom: '0', left: '0', right: '0' }});
         await browser.close();
         res.sendFile(rutaPDF);
-
-    } catch (error) {
-        console.error(error);
-        res.status(500).send(`<div style="font-family: Arial; padding: 50px; text-align: center;"><h2 style="color: red;">❌ Error al generar el PDF</h2><p>${error.message}</p></div>`);
-    }
+    } catch (error) { res.status(500).send(`<h2 style="color: red;">❌ Error: ${error.message}</h2>`); }
 });
 
 const PORT = 3000;
