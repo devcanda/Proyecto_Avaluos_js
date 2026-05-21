@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Dashboard from './components/Dashboard'
 import FormularioAvaluo from './components/FormularioAvaluo'
+import GestorPlantillas from './components/GestorPlantillas'
 
 function App() {
   const [sesionIniciada, setSesionIniciada] = useState(true);
@@ -54,6 +55,9 @@ function App() {
                onClick={() => setVistaActiva('dashboard')} style={{cursor:'pointer'}}>📊 Dashboard</a>
             <a className={`list-group-item list-group-item-action ${vistaActiva === 'formulario' ? 'active' : ''}`} 
                onClick={manejarNuevo} style={{cursor:'pointer'}}>📝 Nuevo Avalúo</a>
+            <div className="mt-4 mb-2 px-3 small fw-bold text-muted text-uppercase">Configuración</div>
+            <a className={`list-group-item list-group-item-action ${vistaActiva === 'plantillas' ? 'active' : ''}`} 
+               onClick={() => setVistaActiva('plantillas')} style={{cursor:'pointer'}}>🎨 Editor de Plantillas</a>
           </div>
         </div>
 
@@ -70,6 +74,9 @@ function App() {
               setVistaActiva={setVistaActiva} 
               idEdicion={idEdicion} // <-- PASAMOS EL ID AL FORMULARIO
             />
+          )}
+          {vistaActiva === 'plantillas' && (
+            <GestorPlantillas />
           )}
         </div>
       </div>
