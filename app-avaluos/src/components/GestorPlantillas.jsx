@@ -38,10 +38,10 @@ export default function GestorPlantillas() {
   // Lienzo
   const [elementosLienzo, setElementosLienzo] = useState([
     { id: 1, tipo: 'seccion_general_imagenes' },
-    { id: 2, tipo: 'seccion_areas_normatividad' },
-    { id: 3, tipo: 'seccion_predio_dotacion' },
-    { id: 4, tipo: 'seccion_croquis' },
-    { id: 5, tipo: 'seccion_sector' },
+    { id: 2, tipo: 'seccion_sector' },
+    { id: 3, tipo: 'seccion_areas_normatividad' },
+    { id: 4, tipo: 'seccion_predio_dotacion' },
+    { id: 5, tipo: 'seccion_croquis' },
     { id: 6, tipo: 'seccion_comparables_valoracion' },
     { id: 7, tipo: 'seccion_usos_propuestos' },
     { id: 8, tipo: 'seccion_textos_legales' }

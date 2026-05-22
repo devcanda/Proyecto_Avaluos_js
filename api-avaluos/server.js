@@ -26,7 +26,8 @@ const storage = multer.diskStorage({
 const uploadFiles = multer({ storage: storage }).fields([
     { name: 'fotoFachada', maxCount: 1 },
     { name: 'fotoMapa', maxCount: 1 },
-    { name: 'fotosAnexos', maxCount: 20 }
+    { name: 'fotosAnexos', maxCount: 20 },
+    { name: 'membrete', maxCount: 1 }
 ]);
 
 app.get('/api/dashboard', async (req, res) => {
@@ -142,7 +143,12 @@ app.post('/api/plantillas', uploadFiles, async (req, res) => {
     try {
         const config = JSON.parse(req.body.configuracion);
         let membrete_url = null;
-        if (req.files && req.files['membrete']) membrete_url = req.files['membrete'][0].filename;
+        if (req.files && req.files['membrete']) {
+            membrete_url = req.files['membrete'][0].filename;
+        } else {
+            const [oldPlantilla] = await db.query('SELECT membrete_url FROM plantillas_pdf WHERE es_predeterminada = 1 LIMIT 1');
+            if (oldPlantilla.length > 0) membrete_url = oldPlantilla[0].membrete_url;
+        }
 
         await db.query('UPDATE plantillas_pdf SET es_predeterminada = 0');
         
@@ -300,22 +306,22 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
                                 <table class="zebra-table">
                                     <tr><td class="zebra-label">Fecha de visita</td><td class="zebra-value">${formatDate(datos.FechaDeVisita)}</td></tr>
                                     <tr><td class="zebra-label">Fecha del avalúo</td><td class="zebra-value">${formatDate(datos.FechaDelAvalio)}</td></tr>
-                                    <tr><td class="zebra-label">Tipo de avalúo</td><td class="zebra-value">${datos.TipoDeAvaluo || 'Urbano'}</td></tr>
-                                    <tr><td class="zebra-label">Finalidad del avalúo</td><td class="zebra-value">${datos.FinalidadDelAvaluo || 'Valor comercial'}</td></tr>
-                                    <tr><td class="zebra-label">Objeto del avalúo</td><td class="zebra-value">${datos.ObjetoDelAvaluo || 'Originación'}</td></tr>
-                                    <tr><td class="zebra-label">Solicitante</td><td class="zebra-value" style="text-transform: uppercase;">${datos.Solicitante || 'DAVID MURCIA'}</td></tr>
-                                    <tr><td class="zebra-label">Tipo de documento</td><td class="zebra-value">${datos.NumeroDocumento || '(CC)-94383933'}</td></tr>
-                                    <tr><td class="zebra-label">Tipo de bien</td><td class="zebra-value">${datos.TipoDeBien || 'Lote urbano'}</td></tr>
-                                    <tr><td class="zebra-label">Sector</td><td class="zebra-value">${datos.Sector || 'Urbano'}</td></tr>
-                                    <tr><td class="zebra-label">Vivienda de interés social</td><td class="zebra-value">${datos.ViviendaInteresSocial || 'No'}</td></tr>
+                                    <tr><td class="zebra-label">Tipo de avalúo</td><td class="zebra-value">${datos.TipoDeAvaluo || ''}</td></tr>
+                                    <tr><td class="zebra-label">Finalidad del avalúo</td><td class="zebra-value">${datos.FinalidadDelAvaluo || ''}</td></tr>
+                                    <tr><td class="zebra-label">Objeto del avalúo</td><td class="zebra-value">${datos.ObjetoDelAvaluo || ''}</td></tr>
+                                    <tr><td class="zebra-label">Solicitante</td><td class="zebra-value" style="text-transform: uppercase;">${datos.Solicitante || ''}</td></tr>
+                                    <tr><td class="zebra-label">Tipo de documento</td><td class="zebra-value">${datos.NumeroDocumento || ''}</td></tr>
+                                    <tr><td class="zebra-label">Tipo de bien</td><td class="zebra-value">${datos.TipoDeBien || ''}</td></tr>
+                                    <tr><td class="zebra-label">Sector</td><td class="zebra-value">${datos.Sector || ''}</td></tr>
+                                    <tr><td class="zebra-label">Vivienda</td><td class="zebra-value">${datos.Vivienda === '1' ? 'SI' : (datos.Vivienda === '2' ? 'NO' : '')}</td></tr>
                                     <tr><td class="zebra-label">Estrato</td><td class="zebra-value">${datos.Estrato || ''}</td></tr>
-                                    <tr><td class="zebra-label">Producto</td><td class="zebra-value">${datos.Producto || 'Licitación'}</td></tr>
+                                    <tr><td class="zebra-label">Producto</td><td class="zebra-value">${datos.Producto || ''}</td></tr>
                                 </table>
                                 
                                 <div class="corp-title" style="margin-top: 25px;"><span class="corp-bullet"></span>MATRÍCULA INMOBILIARIA</div>
                                 <table class="zebra-table-2">
                                     <tr><th>TIPO</th><th>NÚMERO</th><th>TIPO</th><th>NÚMERO</th></tr>
-                                    <tr><td>Lote número</td><td>${datos.matriculainmNumero1 || '384-149905'}</td><td></td><td></td></tr>
+                                    <tr><td>${datos.matriculainmTipo1 || ''}</td><td>${datos.matriculainmNumero1 || ''}</td><td>${datos.matriculainmTipo2 || ''}</td><td>${datos.matriculainmNumero2 || ''}</td></tr>
                                 </table>
 
                                 <!-- CAJA DE FIRMA -->
@@ -353,37 +359,121 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
                 if (bloque.tipo === 'seccion_sector') {
                     return `
                     <div style="page-break-before: always;"></div>
-                    <table style="width: 100%; border:none; margin-bottom:15px; font-size: 8px;">
+                    <table style="width: 100%; border:none; margin-bottom:15px; table-layout: fixed;">
                         <tr>
                             <td style="width: 50%; vertical-align: top; padding-right: 15px;">
-                                <div style="color: #1d429a; font-weight: bold; margin-bottom: 5px;">SECTOR</div>
-                                <div style="color:#1d429a;">Demanda/Interés <span style="color:#333;">${datos.ComportamientoOfertayDemanda || ''}</span></div>
-                                <div style="color:#1d429a;">Uso predominante <span style="color:#333;">${datos.UsoActualPredominante || ''}</span></div>
-                                <div style="color:#1d429a;">Legalidad <span style="color:#333;">${datos.Legalidad || ''}</span></div>
-                                <div style="color:#1d429a;">Transporte <span style="color:#333;">${datos.Transporte || ''}</span></div>
-                                
-                                <div style="color:#1d429a; margin-top: 10px;">INFRAESTRUCTURA URBANA DEL SECTOR</div>
-                                <table style="width: 100%; font-size: 8px;">
-                                    <tr><td style="color:#1d429a;">Vías de acceso</td><td>${datos.ViasDeAcceso || ''}</td><td style="color:#1d429a;">Pavimentadas</td><td>${datos.Pavimentadas || ''}</td></tr>
-                                    <tr><td style="color:#1d429a;">Andenes</td><td>${datos.Andenes || ''}</td><td style="color:#1d429a;">Sardineles</td><td>${datos.Sardineles || ''}</td></tr>
-                                    <tr><td style="color:#1d429a;">Acueducto</td><td>${datos.Acueducto || ''}</td><td style="color:#1d429a;">Alcantarillado</td><td>${datos.Alcantarillado || ''}</td></tr>
-                                    <tr><td style="color:#1d429a;">Energía eléctrica</td><td>${datos.EnergiaElectrica || ''}</td><td style="color:#1d429a;">Telefonía</td><td>${datos.Telefonia || ''}</td></tr>
-                                    <tr><td style="color:#1d429a;">Gas natural</td><td>${datos.GasNatural || ''}</td></tr>
+                                <div class="corp-title"><span class="corp-bullet"></span>Sector</div>
+                                <table class="zebra-table-2" style="margin-bottom: 8px;">
+                                    <tr><td style="color:#2d56a0; width:45%;">Demanda/Interés</td><td>${datos.DemandaInteres || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Uso predominante</td><td>${datos.UsoPredominante || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Legalidad</td><td>${datos.Legalidad || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Transporte</td><td>${datos.Transporte || ''}</td></tr>
                                 </table>
+                                
+                                <div class="corp-subtitle" style="margin-top: 10px;">Impacto ambiental negativo</div>
+                                <div style="margin-bottom: 8px; font-size: 11px; color:#2d56a0; display: flex; align-items: center; gap: 4px;">
+                                    <span style="display:inline-block;">${datos.Aire ? '&#9679;' : '&#9675;'}</span> <span style="color:#333; font-size: 11px;">Aire</span> &nbsp;
+                                    <span style="display:inline-block;">${datos.AguasServidas ? '&#9679;' : '&#9675;'}</span> <span style="color:#333; font-size: 11px;">Aguas Servidas</span> &nbsp;
+                                    <span style="display:inline-block;">${datos.Basura ? '&#9679;' : '&#9675;'}</span> <span style="color:#333; font-size: 11px;">Basura</span> &nbsp;
+                                    <span style="display:inline-block;">${datos.Inseguridad ? '&#9679;' : '&#9675;'}</span> <span style="color:#333; font-size: 11px;">Inseguridad</span> &nbsp;
+                                    <span style="display:inline-block;">${datos.Ruido ? '&#9679;' : '&#9675;'}</span> <span style="color:#333; font-size: 11px;">Ruido</span>
+                                </div>
+                                <div class="corp-subtitle">Observaciones</div>
+                                <p style="font-size: 11px; text-align: justify; line-height: 1.45; color: #333; margin-top:2px;">${datos.SectorObservaciones || 'No se evidencia ningún impacto ambiental negativo, excepto por la polución vehicular.'}</p>
+                                
+                                <div class="corp-title" style="margin-top: 20px;"><span class="corp-bullet"></span>Equipamiento</div>
+                                <table class="comparables-table">
+                                    <tr>
+                                        <th>EQUIPAMIENTO</th>
+                                        <th>NIVEL DE EQUIPAMIENTO</th>
+                                        <th>DISTANCIA APROX EN METROS</th>
+                                    </tr>
+                                    <tr>
+                                        <td style="color:#2d56a0;">Áreas Verdes</td>
+                                        <td>${datos.AreasVerdesNE || ''}</td>
+                                        <td>${datos.AreasVerdesDAM || ''}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="color:#2d56a0;">Asistencial</td>
+                                        <td>${datos.AsistencialNE || ''}</td>
+                                        <td>${datos.AsistencialDAM || ''}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="color:#2d56a0;">Comercial</td>
+                                        <td>${datos.ComercialNE || ''}</td>
+                                        <td>${datos.ComercialDAM || ''}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="color:#2d56a0;">Escolar</td>
+                                        <td>${datos.EscolarNE || ''}</td>
+                                        <td>${datos.EscolarDAM || ''}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="color:#2d56a0;">Estacionamientos</td>
+                                        <td>${datos.EstacionamientosNE || ''}</td>
+                                        <td>${datos.EstacionamientosDAM || ''}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="color:#2d56a0;">Áreas recreativas</td>
+                                        <td>${datos.AreasRecreativasNE || ''}</td>
+                                        <td>${datos.AreasRecreativasDAM || ''}</td>
+                                    </tr>
+                                </table>
+
+                                <div class="corp-title" style="margin-top: 20px;"><span class="corp-bullet"></span>Infraestructura urbana del sector</div>
+                                <table class="zebra-table-2" style="margin-bottom: 8px;">
+                                    <tr><td style="color:#2d56a0;">Vías de acceso</td><td>${datos.ViasDeAcceso || ''}</td><td style="color:#2d56a0;">Pavimentadas</td><td>${datos.Pavimentadas || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Andenes</td><td>${datos.Andenes || ''}</td><td style="color:#2d56a0;">Sardineles</td><td>${datos.Sardineles || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Acueducto</td><td>${datos.Acueducto || ''}</td><td style="color:#2d56a0;">Alcantarillado</td><td>${datos.Alcantarillado || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Energía eléctrica</td><td>${datos.EnergiaElectrica || ''}</td><td style="color:#2d56a0;">Telefonía</td><td>${datos.Telefonia || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Gas natural</td><td colspan="3">${datos.GasNatural || ''}</td></tr>
+                                </table>
+
+                                <div class="corp-subtitle">Amoblamiento urbano</div>
+                                <div style="margin-bottom: 8px; font-size: 11px; color:#2d56a0; line-height: 1.5;">
+                                    <span style="display:inline-block;">${datos.Alamedas ? '&#9679;' : '&#9675;'}</span> <span style="color:#333; font-size: 11px;">Alamedas</span> &nbsp;
+                                    <span style="display:inline-block;">${datos.Alumbrado ? '&#9679;' : '&#9675;'}</span> <span style="color:#333; font-size: 11px;">Alumbrado</span> &nbsp;
+                                    <span style="display:inline-block;">${datos.Arborizacion ? '&#9679;' : '&#9675;'}</span> <span style="color:#333; font-size: 11px;">Arborización</span> &nbsp;
+                                    <span style="display:inline-block;">${datos.Ciclorutas ? '&#9679;' : '&#9675;'}</span> <span style="color:#333; font-size: 11px;">Ciclorutas</span><br/>
+                                    <span style="display:inline-block;">${datos.Paradero ? '&#9679;' : '&#9675;'}</span> <span style="color:#333; font-size: 11px;">Paradero</span> &nbsp;
+                                    <span style="display:inline-block;">${datos.Parques ? '&#9679;' : '&#9675;'}</span> <span style="color:#333; font-size: 11px;">Parques</span> &nbsp;
+                                    <span style="display:inline-block;">${datos.ZonasVerdes ? '&#9679;' : '&#9675;'}</span> <span style="color:#333; font-size: 11px;">Zonas verdes</span>
+                                </div>
+
+                                <div class="corp-subtitle">Perspectivas de valorización</div>
+                                <p style="font-size: 11px; text-align: justify; line-height: 1.45; color: #333; margin-top:2px;">${datos.PerspectivasDeValorizacion || 'De acuerdo con las condiciones del sector y a la dinámica del mercado, se consideran perspectivas de valoración altas.'}</p>
                             </td>
-                            <td style="width: 50%; vertical-align: top;">
-                                <div style="color: #1d429a; font-weight: bold; margin-bottom: 5px;">EDIFICACIÓN ESTRUCTURA</div>
-                                <div style="color:#1d429a;">Estado de la construcción <span style="color:#333;">${datos.EstadoDeLaConstruccion || ''}</span></div>
-                                <div style="color:#1d429a;">Avance (en construcción) <span style="color:#333;">${datos.AvanceEnConstruccion || ''}</span></div>
-                                <div style="color:#1d429a;">Estado de conservación <span style="color:#333;">${datos.EstadoDeConservacion || ''}</span></div>
-                                <div style="color:#1d429a;">No. de pisos del inmueble <span style="color:#333;">${datos.NoDePisosDelInmueble || ''}</span></div>
-                                <div style="color:#1d429a;">Número de sótanos <span style="color:#333;">${datos.NumeroDeSotanos || ''}</span></div>
-                                <div style="color:#1d429a;">Vida útil <span style="color:#333;">${datos.VidaUtil || ''}</span></div>
-                                <div style="color:#1d429a;">Vida remanente <span style="color:#333;">${datos.VidaRemanente || ''}</span></div>
-                                <div style="color:#1d429a; margin-top: 10px;">Estructura <span style="color:#333;">${datos.Estructura || ''}</span></div>
-                                <div style="color:#1d429a;">Material de estructura <span style="color:#333;">${datos.MaterialDeEstructura || ''}</span></div>
-                                <div style="color:#1d429a;">Cubierta <span style="color:#333;">${datos.Cubierta || ''}</span></div>
-                                <div style="color:#1d429a;">Fachada <span style="color:#333;">${datos.Fachada || ''}</span></div>
+                            <td style="width: 50%; vertical-align: top; padding-left: 10px;">
+                                <div class="corp-title"><span class="corp-bullet"></span>Edificación estructura</div>
+                                <table class="zebra-table-2" style="margin-bottom: 8px;">
+                                    <tr><td style="color:#2d56a0;">Estado de la construcción</td><td>${datos.EstadoDeLaConstruccion || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Avance (en construcción)</td><td>${datos.AvanceEnConstruccion || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Estado de conservación</td><td>${datos.EstadoDeConservacion || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">No. de pisos del inmueble</td><td>${datos.NoDePisosDelInmueble || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Número de sótanos</td><td>${datos.NumeroDeSotanos || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Vida útil</td><td>${datos.VidaUtil || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Vida remanente</td><td>${datos.VidaRemanente || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Año de construcción</td><td>${datos.YearDeConstruccion || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Edad</td><td>${datos.Edad || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Estructura</td><td>${datos.Estructura || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Material de Estructura</td><td>${datos.MaterialDeEstructura || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Estado</td><td>${datos.EstructuraEstado || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Remodelado</td><td>${datos.Remodelado || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Uso Actual Predominante</td><td>${datos.UsoActualPredominante || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Ajuste sismorresistente</td><td>${datos.AjusteSismorresistente || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Cubierta</td><td>${datos.Cubierta || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Fachada</td><td>${datos.Fachada || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Tipo de fachada en metros</td><td>${datos.TipoDeFachadaEnMetros || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Estructura reforzada</td><td>${datos.EstructuraReforzada || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Daños previos</td><td>${datos.DanosPrevios || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Material de construcción</td><td>${datos.MaterialDeConstruccion || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Iluminación</td><td>${datos.Iluminacion || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Ventilación</td><td>${datos.Ventilacion || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Irregularidad planta</td><td>${datos.IrregularidadPlanta || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Irregularidad altura</td><td>${datos.IrregularidadAltura || ''}</td></tr>
+                                </table>
+                                <div class="corp-subtitle">Comentarios de la estructura</div>
+                                <p style="font-size: 11px; text-align: justify; line-height: 1.45; color: #333; margin-top:2px;">${datos.ComentariosDeLaEstructura || 'No se evidencia ninguna clase de construcción sobre el lote objeto de avalúo.'}</p>
                             </td>
                         </tr>
                     </table>`;
@@ -392,8 +482,19 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
                 if (bloque.tipo === 'seccion_textos_legales') {
                     return `
                     <div style="page-break-before: always;"></div>
-                    <div style="font-size: 8px; text-align: justify; margin-bottom: 10px;">
-                        <div style="color: #1d429a; font-weight: bold; text-transform: uppercase;">Definición de Términos y Conceptos</div>
+                    <div style="font-size: 11px; text-align: justify; margin-bottom: 15px; line-height: 1.45;">
+                        <div class="corp-title"><span class="corp-bullet"></span>Definición de Términos y Conceptos</div>
+                        <p><b>AVALÚO:</b> Es el estudio o proceso mediante el cual se estima y documenta el valor de un bien raíz o bien inmueble, de acuerdo a la apreciación personal expresada por un profesional...</p>
+                        <p><b>VALOR COMERCIAL:</b> Es la cantidad estimada de dinero circulante a cambio de la cual el vendedor y el comprador del bien que se valúa...</p>
+                        
+                        <div class="corp-title" style="margin-top: 20px;"><span class="corp-bullet"></span>Condicionantes y Salvedades al Avalúo</div>
+                        <p>Conforme al artículo 18 de la Resolución 620, del 23/09/2008, del IGAC; por la cual se establece la metodología...</p>
+                        <p>La información y antecedentes de propiedad asentados en el presente Avalúo es la contenida en la documentación oficial...</p>
+                        
+                        <div class="corp-title" style="margin-top: 20px;"><span class="corp-bullet"></span>Metodología Valuatoria</div>
+                        <p>Método Físico, Directo o enfoque de COSTOS, es el proceso técnico necesario para estimar el costo de reproducción o de reemplazo...</p>
+                        <p>Método Comparativo o de MERCADO, es el desarrollo analítico a través del cual se obtiene un valor que resulta de comparar el bien que se valúa...</p>
+                    </div>
                         <p><b>AVALÚO:</b> Es el estudio o proceso mediante el cual se estima y documenta el valor de un bien raíz o bien inmueble, de acuerdo a la apreciación personal expresada por un profesional...</p>
                         <p><b>VALOR COMERCIAL:</b> Es la cantidad estimada de dinero circulante a cambio de la cual el vendedor y el comprador del bien que se valúa...</p>
                         <div style="color: #1d429a; font-weight: bold; text-transform: uppercase; margin-top: 10px;">Condicionantes y Salvedades al Avalúo</div>
@@ -408,8 +509,25 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
                 if (bloque.tipo === 'seccion_usos_propuestos') {
                     return `
                     <div style="page-break-before: always;"></div>
-                    <div style="font-size: 8px; margin-bottom: 15px;">
-                        <div style="font-weight: bold; color: black; margin-bottom: 5px;">USOS PROPUESTOS</div>
+                    <div style="margin-bottom: 15px;">
+                        <div class="corp-title"><span class="corp-bullet"></span>Usos Propuestos</div>
+                        <table class="comparables-table">
+                            <tr>
+                                <th>Globo de Terreno</th>
+                                <th>Uso Principal</th>
+                                <th>Uso Complementario</th>
+                                <th>Uso Compatible</th>
+                                <th>Normas Particulares</th>
+                            </tr>
+                            <tr>
+                                <td style="text-align: center; font-weight: bold; color: #2d56a0;">M 01 A</td>
+                                <td>${datos.UsoPrincipal || 'Dotacional Servicios Básicos'}</td>
+                                <td>Comercial C3, Actividades relacionadas...</td>
+                                <td>Estaciones de Servicio...</td>
+                                <td>Uso Principal de cobertura regional</td>
+                            </tr>
+                        </table>
+                    </div>
                         <table style="width: 100%; border-collapse: collapse; border: 1px solid black;">
                             <tr style="background: #f4f6f9;">
                                 <th style="border: 1px solid black; padding: 4px;">Globo de Terreno</th>
@@ -506,7 +624,7 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
                                 <p style="font-size: 11px; text-align: justify; line-height: 1.45; color: #333;">${datos.ComportamientoOfertayDemanda || 'Del análisis del segmento del mercado relativo a los inmuebles comparables con el que se valora, se deduce que la oferta en la zona es baja por encontrarse la mayoría de los lotes y predios adjudicados, contraria a la demanda alta.'}</p>
                                 
                                 <div class="corp-subtitle">Descripción sector, actividad inmobiliaria, vías importantes</div>
-                                <p style="font-size: 11px; text-align: justify; line-height: 1.45; color: #333;">${datos.SectorObservaciones || 'El lote se encuentra ubicado en uno de los sectores mas exclusivos del municipio de Tuluá, en el cual se observan gran número de proyectos urbanísticos de unidades unifamiliares y parcelaciones campestre.'}</p>
+                                <p style="font-size: 11px; text-align: justify; line-height: 1.45; color: #333;">${datos.DescripcionSectorInmobiliario || ''}</p>
                                 
                                 <div class="corp-subtitle">Actualidad edificadora</div>
                                 <p style="font-size: 11px; text-align: justify; line-height: 1.45; color: #333;">${datos.ActualidadEdificadora || 'En el sector donde se localiza el inmueble objeto del Avalúo, se evidencia una actividad edificadora creciente.'}</p>
@@ -518,7 +636,7 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
                 if (bloque.tipo === 'seccion_croquis') {
                     return `
                     <div style="page-break-before: always;"></div>
-                    <div style="color: #1d429a; font-size: 10px; margin-bottom: 5px;">CROQUIS</div>
+                    <div class="corp-title"><span class="corp-bullet"></span>Croquis</div>
                     ${b64Croquis ? `<img src="${b64Croquis}" style="width:100%; height:800px; object-fit:contain;" />` : '<div style="height:800px; text-align:center; padding-top:400px; border:1px solid #ccc;">Croquis no disponible</div>'}
                     `;
                 }
@@ -526,46 +644,88 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
                 if (bloque.tipo === 'seccion_predio_dotacion') {
                     return `
                     <div style="page-break-before: always;"></div>
-                    <table style="width: 100%; border:none; margin-bottom:15px; font-size: 8px;">
+                    <table style="width: 100%; border:none; margin-bottom:15px; table-layout: fixed;">
                         <tr>
                             <td style="width: 50%; vertical-align: top; padding-right: 15px;">
-                                <div style="color: #1d429a; font-weight: bold; margin-bottom: 5px; text-transform:uppercase;">Predio</div>
-                                <div style="color: #1d429a; font-weight: bold; margin-top: 5px;">Servicios</div>
-                                <table style="width: 100%;">
-                                    <tr><td style="color:#1d429a;">Acueducto</td><td>${datos.P_Acueducto || 'No tiene'}</td><td style="color:#1d429a;">Alcantarillado</td><td>${datos.P_Alcantarillado || 'No tiene'}</td></tr>
-                                    <tr><td style="color:#1d429a;">Energía eléctrica</td><td>${datos.P_Energia || 'No tiene'}</td><td style="color:#1d429a;">Gas natural</td><td>${datos.P_Gas || 'No tiene'}</td></tr>
-                                    <tr><td style="color:#1d429a;">Telefonía</td><td>${datos.P_Telefonia || 'No tiene'}</td></tr>
+                                <div class="corp-title"><span class="corp-bullet"></span>Predio</div>
+                                <div class="corp-subtitle" style="margin-top: 0;">Servicios</div>
+                                <table class="zebra-table-2" style="margin-bottom: 8px;">
+                                    <tr><td style="color:#2d56a0;">Acueducto</td><td>${datos.P_Acueducto || 'No tiene'}</td><td style="color:#2d56a0;">Alcantarillado</td><td>${datos.P_Alcantarillado || 'No tiene'}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Energía eléctrica</td><td>${datos.P_Energia || 'No tiene'}</td><td style="color:#2d56a0;">Gas natural</td><td>${datos.P_Gas || 'No tiene'}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Telefonía</td><td colspan="3">${datos.P_Telefonia || 'No tiene'}</td></tr>
                                 </table>
-                                <div style="color: #1d429a; font-weight: bold; margin-top: 10px;">Dependencias</div>
-                                <table style="width: 100%;">
-                                    <tr><td style="color:#1d429a;">Alcobas</td><td style="color:#1d429a;">Alcoba de servicio</td></tr>
-                                    <tr><td style="color:#1d429a;">Balcón</td><td style="color:#1d429a;">Baño de servicio</td></tr>
-                                    <tr><td style="color:#1d429a;">Baño privado</td><td style="color:#1d429a;">Baño social</td></tr>
-                                    <tr><td style="color:#1d429a;">Cocina</td><td style="color:#1d429a;">Comedor</td></tr>
-                                    <tr><td style="color:#1d429a;">Estar habitación</td><td style="color:#1d429a;">Estudio</td></tr>
+                                <div class="corp-subtitle">Dependencias</div>
+                                <table class="zebra-table-2" style="margin-bottom: 8px;">
+                                    <tr><td style="color:#2d56a0;">Alcobas</td><td>${datos.PredioAlcobas || ''}</td><td style="color:#2d56a0;">Alcoba de servicio</td><td>${datos.PredioAlcobaServicio || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Balcón</td><td>${datos.PredioBalcon || ''}</td><td style="color:#2d56a0;">Baño de servicio</td><td>${datos.PredioBanoServicio || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Baño privado</td><td>${datos.PredioBanoPrivado || ''}</td><td style="color:#2d56a0;">Baño social</td><td>${datos.PredioBanoSocial || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Cocina</td><td>${datos.PredioCocina || ''}</td><td style="color:#2d56a0;">Comedor</td><td>${datos.PredioComedor || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Estar habitación</td><td>${datos.PredioEstarHabitacion || ''}</td><td style="color:#2d56a0;">Estudio</td><td>${datos.PredioEstudio || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Jardín</td><td>${datos.PredioJardin || ''}</td><td style="color:#2d56a0;">Patio interior</td><td>${datos.PredioPatioInterior || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Sala</td><td>${datos.PredioSala || ''}</td><td style="color:#2d56a0;">Terraza</td><td>${datos.PredioTerraza || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Zona de ropas</td><td>${datos.PredioZonaDeRopas || ''}</td><td style="color:#2d56a0;">Closet</td><td>${datos.PredioCloset || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Predio subdividido</td><td colspan="3">${datos.PredioPredioSubdividido || ''}</td></tr>
                                 </table>
-                                <div style="color: #1d429a; font-weight: bold; margin-top: 10px;">Garajes</div>
-                                <table style="width: 100%;">
-                                    <tr><td style="color:#1d429a;">Total Cupos de Parqueo</td><td></td><td style="color:#1d429a;">Uso exclusivo</td><td></td></tr>
+                                <div class="corp-subtitle">Garajes</div>
+                                <table class="zebra-table-2" style="margin-bottom: 8px;">
+                                    <tr><td style="color:#2d56a0;">Total Cupos de Parqueo</td><td>${datos.PredioTotalCuposDeParqueo || ''}</td><td style="color:#2d56a0;">Uso exclusivo</td><td>${datos.PredioUsoExclusivo || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Bahía comunal</td><td>${datos.PredioBahiaComunal || ''}</td><td style="color:#2d56a0;">Cubierto</td><td>${datos.PredioCubierto || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Descubierto</td><td>${datos.PredioDescubierto || ''}</td><td style="color:#2d56a0;">Doble</td><td>${datos.PredioDoble || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Privado</td><td>${datos.PredioPrivado || ''}</td><td style="color:#2d56a0;">Sencillo</td><td>${datos.PredioSencillo || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Servidumbre</td><td colspan="3">${datos.PredioServidumbre || ''}</td></tr>
+                                </table>
+                                <div class="corp-subtitle">Otros</div>
+                                <table class="zebra-table-2" style="margin-bottom: 8px;">
+                                    <tr><td style="color:#2d56a0;">Bodega</td><td>${datos.PredioBodega || ''}</td><td style="color:#2d56a0;">Depósito</td><td>${datos.PredioDeposito || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Tipo de depósito</td><td>${datos.PredioTipoDeposito || ''}</td><td style="color:#2d56a0;">Oficina</td><td>${datos.PredioOficina || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Local</td><td colspan="3">${datos.PredioLocal || ''}</td></tr>
+                                </table>
+                                
+                                <div class="corp-title" style="margin-top: 15px;"><span class="corp-bullet"></span>Edificación Acabados</div>
+                                <table class="comparables-table">
+                                    <tr>
+                                        <th>Acabados por recinto</th>
+                                        <th>Acabados Pisos</th>
+                                        <th>Acabados Muros</th>
+                                    </tr>
+                                    ${(Array.isArray(datos.acabadosEdificacion) && datos.acabadosEdificacion.length > 0) ? datos.acabadosEdificacion.map(a => `
+                                    <tr>
+                                        <td>${a.recinto || ''}</td>
+                                        <td>${a.pisos || ''}</td>
+                                        <td>${a.muros || ''}</td>
+                                    </tr>
+                                    `).join('') : `<tr><td colspan="3" style="text-align:center;">Sin detalles de acabados</td></tr>`}
                                 </table>
                             </td>
                             <td style="width: 50%; vertical-align: top;">
-                                <div style="color: #1d429a; font-weight: bold; margin-bottom: 5px;">Estado de la edificación</div>
-                                <table style="width: 100%;">
-                                    <tr><td style="color:#1d429a; font-weight:bold;">TIPO</td><td style="color:#1d429a; font-weight:bold;">CALIDAD</td><td style="color:#1d429a; font-weight:bold;">ESTADO</td></tr>
-                                    <tr><td>Carpintería Metálica</td><td></td><td></td></tr>
-                                    <tr><td>Carpintería en Madera</td><td></td><td></td></tr>
-                                    <tr><td>Pisos</td><td></td><td></td></tr>
-                                    <tr><td>Muros</td><td></td><td></td></tr>
-                                    <tr><td>Techos</td><td></td><td></td></tr>
+                                <div class="corp-subtitle" style="margin-top: 0;">Estado de la edificación</div>
+                                <table class="zebra-table-2" style="margin-bottom: 8px;">
+                                    <tr><td style="color:#2d56a0; font-weight:bold;">TIPO</td><td style="color:#2d56a0; font-weight:bold;">CALIDAD</td><td style="color:#2d56a0; font-weight:bold;">ESTADO</td></tr>
+                                    <tr><td style="color:#2d56a0;">Carpintería Metálica</td><td>${datos.CarpinteriaMetalicaCalidad || ''}</td><td>${datos.CarpinteriaMetalicaEstado || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Carpintería en Madera</td><td>${datos.CarpinteriaEnMaderaCalidad || ''}</td><td>${datos.CarpinteriaEnMaderaEstado || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Pisos</td><td>${datos.PisosCalidad || ''}</td><td>${datos.PisosEstado || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Muros</td><td>${datos.MurosCalidad || ''}</td><td>${datos.MurosEstado || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Techos</td><td>${datos.TechosCalidad || ''}</td><td>${datos.TechosEstado || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Cocina</td><td>${datos.CocinaCalidad || ''}</td><td>${datos.CocinaEstado || ''}</td></tr>
+                                    <tr><td style="color:#2d56a0;">Baños</td><td>${datos.BanosCalidad || ''}</td><td>${datos.BanosEstado || ''}</td></tr>
                                 </table>
-                                <div style="color: #1d429a; font-weight: bold; margin-top: 10px; text-transform:uppercase;">Dotación Comunal</div>
-                                <div><span style="color:#1d429a;">Valor Admón.</span> </div>
-                                <div style="margin-top: 5px;"><span style="color:#1d429a;">Ascensores</span></div>
-                                <div style="line-height:1.8;">
-                                    <span style="display:inline-block; width:10px; height:10px; border-radius:50%; border:1px solid #1d429a; margin-right:3px;"></span> A.A. Central
-                                    <span style="display:inline-block; width:10px; height:10px; border-radius:50%; border:1px solid #1d429a; margin-right:3px; margin-left:5px;"></span> BBQ
-                                    <span style="display:inline-block; width:10px; height:10px; border-radius:50%; border:1px solid #1d429a; margin-right:3px; margin-left:5px;"></span> Bicicletero
+                                <div class="corp-title" style="margin-top: 15px;"><span class="corp-bullet"></span>Dotación Comunal</div>
+                                <div style="font-size: 11px;"><span style="color:#2d56a0;">Valor Admón.</span> <span style="color:#333;">${datos.DCValorAdmon || ''}</span> &nbsp;&nbsp;&nbsp; <span style="color:#2d56a0;">Mensualidad</span> <span style="color:#333;">${datos.DCMensualidad || ''}</span></div>
+                                <div style="margin-top: 3px; font-size: 11px;"><span style="color:#2d56a0;">Valor admón m²</span> <span style="color:#333;">${datos.DCValorAdmonM2 || ''}</span> &nbsp;&nbsp;&nbsp; <span style="color:#2d56a0;">Vigilancia Priv.</span> <span style="color:#333;">${datos.DCVigilanciaPrivada || ''}</span></div>
+                                <div style="margin-top: 3px; font-size: 11px;"><span style="color:#2d56a0;">Ascensores</span> <span style="color:#333;">${datos.DCAscensores || ''}</span></div>
+                                <div style="line-height:1.8; margin-top:5px;">
+                                    ${['A.A. Central', 'BBQ', 'Bicicletero', 'Bomba eyect', 'Calefacción', 'Cancha multiuso', 'Cancha Squash', 'CCTV', 'Citofonía', 'Club house', 'Equipo de presión', 'Garajes residentes', 'Garajes visitantes', 'Gimnasio', 'Golfito', 'Guardería', 'Juegos niños', 'Piscina', 'Planta eléctrica', 'Portería', 'Salón comunal', 'Salón de juegos', 'Sauna', 'Shut basuras', 'Tanque de agua', 'Teatrino', 'Terraza comunal', 'Turco', 'Vigilancia 24 horas', 'Zonas verdes', 'Otros'].map(lbl => {
+                                        let field = 'DC' + lbl.replace(/[^a-zA-Z]/g, '');
+                                        if (lbl === 'Bomba eyect') field = 'DCBombaEyect';
+                                        if (lbl === 'Equipo de presión') field = 'DCEquipoPresion';
+                                        if (lbl === 'Juegos niños') field = 'DCJuegosNinos';
+                                        if (lbl === 'Shut basuras') field = 'DCShutBasuras';
+                                        if (lbl === 'Zonas verdes') field = 'DCZonaVerde';
+                                        if (lbl === 'Vigilancia 24 horas') field = 'DCVigilancia24Horas';
+                                        if (lbl === 'A.A. Central') field = 'DCAACentral';
+                                        let check = datos[field] ? 'background-color:#2d56a0;' : 'background-color:transparent;';
+                                        return `<span style="display:inline-block; white-space:nowrap; margin-right:8px;"><span style="display:inline-block; width:10px; height:10px; border-radius:50%; border:1px solid #2d56a0; margin-right:3px; vertical-align:middle; ${check}"></span><span style="vertical-align:middle;" class="corp-subtitle">${lbl}</span></span>`;
+                                    }).join('')}
                                 </div>
                             </td>
                         </tr>
@@ -575,29 +735,86 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
                 if (bloque.tipo === 'seccion_comparables_valoracion') {
                     return `
                     <div style="page-break-before: always;"></div>
-                    <div style="color: #1d429a; font-weight: bold; text-transform: uppercase; font-size: 9px;">Comparables de inmuebles en venta semejantes en uso al sujeto</div>
-                    <div style="color: #1d429a; font-size: 8px; margin-bottom: 5px;">Investigación de comparables</div>
-                    <table style="width: 100%; border-collapse: collapse; font-size: 8px; border: 1px solid gray; margin-bottom: 10px;">
-                        <tr><th style="border: 1px solid gray;">#</th><th style="border: 1px solid gray;">DIRECCIÓN</th><th style="border: 1px solid gray;">EDAD</th><th style="border: 1px solid gray;">ÁREA LOTE</th><th style="border: 1px solid gray;">VALOR COMERCIAL</th></tr>
-                        <tr><td style="border: 1px solid gray;">1</td><td style="border: 1px solid gray;"></td><td style="border: 1px solid gray;">0</td><td style="border: 1px solid gray;">0,00</td><td style="border: 1px solid gray;">0,00</td></tr>
-                        <tr><td style="border: 1px solid gray;">2</td><td style="border: 1px solid gray;"></td><td style="border: 1px solid gray;">0</td><td style="border: 1px solid gray;">0,00</td><td style="border: 1px solid gray;">0,00</td></tr>
-                        <tr style="background:#1d429a; color:white;"><td colspan="2" style="text-align:center; font-weight:bold; font-size:10px; padding:5px;">SUJETO</td><td>0</td><td>${datos.AreaLote || '0,00'}</td><td></td></tr>
+                    <div class="corp-title"><span class="corp-bullet"></span>Comparables de inmuebles en venta semejantes en uso al sujeto</div>
+                    <div class="corp-subtitle" style="margin-top: 0; margin-bottom: 5px;">Investigación de comparables</div>
+                    <table class="comparables-table">
+                        <tr><th>#</th><th>DIRECCIÓN</th><th>EDAD</th><th>ÁREA LOTE</th><th>ÁREA CONSTR.</th><th>VALOR CONSTR.</th><th>VALOR COMERCIAL</th><th>FUENTE</th></tr>
+                        ${(Array.isArray(datos.ofertasMercado) && datos.ofertasMercado.length > 0) ? datos.ofertasMercado.map((of, i) => `
+                        <tr>
+                            <td style="text-align:center;">${i+1}</td>
+                            <td>${of.direccion || ''}</td>
+                            <td style="text-align:center;">${of.edad || ''}</td>
+                            <td style="text-align:right;">${of.areaLote || ''}</td>
+                            <td style="text-align:right;">${of.areaConstr || ''}</td>
+                            <td style="text-align:right;">${of.valorConstr || ''}</td>
+                            <td style="text-align:right;">${of.valorComercial || ''}</td>
+                            <td>${of.fuente || ''}</td>
+                        </tr>
+                        `).join('') : `<tr><td colspan="8" style="text-align:center;">No hay comparables registrados</td></tr>`}
+                        <tr style="background:#1d429a; color:white;"><td colspan="2" style="text-align:center; font-weight:bold; padding:5px;">SUJETO</td><td style="text-align:center;">${datos.Edad || '0'}</td><td style="text-align:right;">${datos.AreaLote || '0,00'}</td><td style="text-align:right;">${datos.AreaValorada || '0,00'}</td><td></td><td></td><td></td></tr>
                     </table>
 
-                    <div style="color: #1d429a; font-size: 8px; margin-top:15px; margin-bottom: 5px;">CUADRO DE VALORACIÓN TERRENO</div>
-                    <table style="width: 100%; border-collapse: collapse; font-size: 8px; border: 1px solid gray; margin-bottom: 10px;">
-                        <tr><th style="border: 1px solid gray;">TERRENO</th><th style="border: 1px solid gray;">ÁREA</th><th style="border: 1px solid gray;">VALOR M²</th><th style="border: 1px solid gray;">PRECIO TOTAL</th></tr>
-                        <tr><td style="border: 1px solid gray;">LOTE</td><td style="border: 1px solid gray;">${datos.AreaLote || '0'}</td><td style="border: 1px solid gray;"></td><td style="border: 1px solid gray;"></td></tr>
-                        <tr style="background:#1d429a; color:white;"><td style="font-weight:bold; font-size:10px; padding:5px;">SUBTOTAL TERRENO</td><td style="background:white; color:black; border:1px solid gray;">${datos.AreaLote || '0'}</td><td style="background:white; color:black; border:1px solid gray;"></td><td style="background:white; color:black; border:1px solid gray;">0,00</td></tr>
+                    <div class="corp-title" style="margin-top: 20px;"><span class="corp-bullet"></span>Diagnostico valores de referencia</div>
+                    <p style="text-align: justify; line-height: 1.45; color: #333; margin-top:2px;">${datos.DVRDiagnostico || 'Se realizó la búsqueda de inmuebles con características similares al inmueble objeto del avalúo...'}</p>
+
+                    <div class="corp-subtitle" style="margin-top:20px; margin-bottom: 5px;">Cuadro de valoración terreno</div>
+                    <table class="comparables-table" style="text-align: center;">
+                        <tr><th>TERRENO</th><th>DESCRIPCIÓN</th><th>ÁREA</th><th>UNIDAD DE MEDIDA</th><th>VALOR M²</th><th>PRECIO TOTAL</th><th>PORCENTAJE</th></tr>
+                        <tr>
+                            <td>LOTE</td>
+                            <td>${datos.CVTDescripcion || ''}</td>
+                            <td>${datos.CVTArea || '0'}</td>
+                            <td>${datos.CVTUniadDeMedida || ''}</td>
+                            <td>${datos.CVTValorUnitario || '0'}</td>
+                            <td>${datos.CVTValor || '0'}</td>
+                            <td>${datos.CVTPorcentaje || ''}</td>
+                        </tr>
+                        <tr style="background:#1d429a; color:white;"><td colspan="2" style="font-weight:bold; padding:5px; text-align:right;">SUBTOTAL TERRENO</td><td style="background:white; color:black; border:1px solid #ccc;">${datos.CVTArea || '0'}</td><td colspan="2" style="background:white; color:black; border:1px solid #ccc;"></td><td style="background:white; color:black; border:1px solid #ccc;">${datos.CVTValor || '0'}</td><td style="background:white; color:black; border:1px solid #ccc;">${datos.CVTPorcentaje || ''}</td></tr>
                     </table>
 
-                    <div style="color: #1d429a; font-size: 8px; margin-top:15px; margin-bottom: 5px;">CUADRO DE VALORACIÓN EDIFICACIONES</div>
-                    <table style="width: 100%; border-collapse: collapse; font-size: 8px; border: 1px solid gray; margin-bottom: 10px;">
-                        <tr><th style="border: 1px solid gray;">EDIFICACIONES</th><th style="border: 1px solid gray;">ÁREA</th><th style="border: 1px solid gray;">VALOR UNITARIO</th><th style="border: 1px solid gray;">VALOR</th></tr>
-                        <tr><td style="border: 1px solid gray;"></td><td style="border: 1px solid gray;">0,00</td><td style="border: 1px solid gray;">0,00</td><td style="border: 1px solid gray;">0,00</td></tr>
-                        <tr style="background:#1d429a; color:white;"><td style="text-align:center; font-weight:bold; font-size:10px; padding:5px;">SUBTOTAL EDIFICACIONES</td><td style="background:white; color:black; border:1px solid gray;">0,00</td><td style="background:white; color:black; border:1px solid gray;"></td><td style="background:white; color:black; border:1px solid gray;">0,00</td></tr>
+                    <div class="corp-subtitle" style="margin-top: 20px; margin-bottom: 5px;">Cuadro de valoración edificaciones</div>
+                    <table class="comparables-table" style="text-align: center;">
+                        <tr><th>EDIFICACIONES</th><th>DESCRIPCIÓN</th><th>ÁREA</th><th>UNIDAD DE MEDIDA</th><th>VALOR M²</th><th>PRECIO TOTAL</th><th>PORCENTAJE</th></tr>
+                        <tr>
+                            <td>CONSTRUCCIÓN</td>
+                            <td>${datos.CVEDescripcion || ''}</td>
+                            <td>${datos.CVEArea || '0'}</td>
+                            <td>${datos.CVEUniadDeMedida || ''}</td>
+                            <td>${datos.CVEValorUnitario || '0'}</td>
+                            <td>${(Number(datos.CVEArea || 0) * Number(datos.CVEValorUnitario || 0)).toLocaleString('es-CO')}</td>
+                            <td>${datos.CVEPorcentaje || ''}</td>
+                        </tr>
+                        <tr style="background:#1d429a; color:white;"><td colspan="2" style="font-weight:bold; padding:5px; text-align:right;">SUBTOTAL EDIFICACIONES</td><td style="background:white; color:black; border:1px solid #ccc;">${datos.CVEArea || '0'}</td><td colspan="2" style="background:white; color:black; border:1px solid #ccc;"></td><td style="background:white; color:black; border:1px solid #ccc;">${(Number(datos.CVEArea || 0) * Number(datos.CVEValorUnitario || 0)).toLocaleString('es-CO')}</td><td style="background:white; color:black; border:1px solid #ccc;">${datos.CVEPorcentaje || ''}</td></tr>
                     </table>
-                    <div style="height: 50px;"></div>`;
+                    
+                    <!-- CAJA DE FIRMA AL FINAL DEL DOCUMENTO -->
+                    <div style="margin-top: 40px; border-top: 1px solid #ddd; padding-top: 15px; position: relative;">
+                        <div style="color: #1d429a; font-size: 14px; font-weight: bold; margin-bottom: 4px;">Diego Antonio Candamil Rengifo</div>
+                        <table style="width: 100%; border:none; margin-bottom: 12px;">
+                            <tr>
+                                <td style="width: 60%; vertical-align: top; padding: 0;">
+                                    <div style="font-size: 11px; color: #333; margin-bottom: 6px;">Valuador</div>
+                                    <div style="font-size: 10px; color: #666; line-height: 1.3;">
+                                        R.A.A. AVAL-94355782<br/>
+                                        Inmuebles Urbanos-Rurales
+                                    </div>
+                                </td>
+                                <td style="width: 40%; vertical-align: middle; text-align: right; padding: 0;">
+                                    ${b64Firma ? `<img src="${b64Firma}" style="max-width:160px; max-height: 60px; object-fit: contain;" />` : `<div style="height:40px; color:#ccc; font-style:italic; font-size:10px; text-align:right; display:flex; align-items:center; justify-content:flex-end;">(Firma pendiente)</div>`}
+                                </td>
+                            </tr>
+                        </table>
+                        <div style="font-size: 9px; color: #777; text-align: justify; line-height: 1.45;">
+                            Diego A. Candamil Nit. 94.355.782, hace constar que el presente avalúo fue revisado
+                            y aprobado por su área técnica. Este documento ha sido firmado digitalmente, con
+                            un certificado de firma digital provisto por una entidad de certificación digital
+                            autorizada por la Superintendencia de industria y comercio, de conformidad con lo
+                            dispuesto por los artículos 28 de la ley 527 de 1999 y 15 del decreto 1747 de 2000.<br/>
+                            En caso que el presente documento se encuentre impreso, este tendrá la connotación
+                            de copia simple del original electrónico.
+                        </div>
+                    </div>
+                    `;
                 }
 
                 return '';
@@ -653,6 +870,10 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
                 table.data-table th, table.data-table td { border: 1px solid #dee2e6; padding: 5px 6px; text-align: left; font-size: 9.5px; }
                 table.data-table th { background-color: #f4f6f9; color: #1a2b4c; width: 23%; font-weight: bold; }
                 table.data-table td { width: 27%; color: #444; }
+                .comparables-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 11px; }
+                .comparables-table th, .comparables-table td { border: 1px solid #dee2e6; padding: 5px 6px; }
+                .comparables-table th { background-color: #f4f6f9; color: #2d56a0; font-weight: bold; }
+                .comparables-table td { color: #333; }
                 .foto-box { background:#f4f6f9; padding:5px; border:1px solid #ccc; font-weight:bold; color:#1a2b4c; font-size:10px; margin-bottom:5px; text-align: center; }
             </style>
         </head>

@@ -127,7 +127,7 @@ export default function FormularioAvaluo({ setVistaActiva, idEdicion }) {
   const handleAcabado = (i, campo, val) => { const n = [...tablaAcabados]; n[i][campo] = val; setFormData({ ...formData, acabadosEdificacion: n }); };
   const eliminarAcabado = (i) => { const n = [...tablaAcabados]; n.splice(i, 1); setFormData({ ...formData, acabadosEdificacion: n }); };
 
-  const agregarOferta = () => setFormData({ ...formData, ofertasMercado: [...tablaOfertas, { direccion: '', edad: '', areaLote: '', areaConstr: '', valorComercial: '', fuente: '' }] });
+  const agregarOferta = () => setFormData({ ...formData, ofertasMercado: [...tablaOfertas, { direccion: '', edad: '', areaLote: '', areaConstr: '', valorConstr: '', valorComercial: '', fuente: '' }] });
   const handleOferta = (i, campo, val) => { const n = [...tablaOfertas]; n[i][campo] = val; setFormData({ ...formData, ofertasMercado: n }); };
   const eliminarOferta = (i) => { const n = [...tablaOfertas]; n.splice(i, 1); setFormData({ ...formData, ofertasMercado: n }); };
 
@@ -219,6 +219,7 @@ export default function FormularioAvaluo({ setVistaActiva, idEdicion }) {
             <Field label="No. Documento" name="NumeroDocumento" formData={formData} onChange={handleInputChange} />
             <Field label="Tipo de Bien" name="TipoDeBien" formData={formData} onChange={handleInputChange} />
             <Field label="Sector" name="Sector" options={['Urbano', 'Rural']} formData={formData} onChange={handleInputChange} />
+            <Field label="Vivienda" name="Vivienda" options={[{ value: '1', label: 'SI' }, { value: '2', label: 'NO' }]} formData={formData} onChange={handleInputChange} />
             <Field label="Vivienda Interés Social" name="ViviendaInteresSocial" options={[{ value: '1', label: 'SI' }, { value: '2', label: 'NO' }]} formData={formData} onChange={handleInputChange} />
             <Field label="Estrato" name="Estrato" formData={formData} onChange={handleInputChange} />
             <Field label="Producto" name="Producto" formData={formData} onChange={handleInputChange} />
@@ -278,6 +279,12 @@ export default function FormularioAvaluo({ setVistaActiva, idEdicion }) {
             <Field label="Área Catastral" name="AreaCatastral" formData={formData} onChange={handleInputChange} />
             <Field label="Área Lic. Constr." name="AreaLicenciaDeConstruccion" formData={formData} onChange={handleInputChange} />
             <Field label="Observaciones Áreas" name="AreaValoradaObservaciones" type="textarea" col="col-md-12" formData={formData} onChange={handleInputChange} />
+
+            <div className="col-12"><h6 className="section-title">■ OFERTA, DEMANDA Y ENTORNO</h6></div>
+            <Field label="Tiempo Comercialización" name="TiempoEsperadoDeComercializacion" formData={formData} onChange={handleInputChange} />
+            <Field label="Comportamiento Oferta/Demanda" name="ComportamientoOfertayDemanda" type="textarea" col="col-12" formData={formData} onChange={handleInputChange} />
+            <Field label="Actualidad Edificadora" name="ActualidadEdificadora" type="textarea" col="col-12" formData={formData} onChange={handleInputChange} />
+            <Field label="Descripción Sector Inmobiliario" name="DescripcionSectorInmobiliario" type="textarea" col="col-12" formData={formData} onChange={handleInputChange} />
 
             <div className="col-12"><h6 className="section-title">■ SECTOR E INFRAESTRUCTURA</h6></div>
             <Field label="Demanda/Interés" name="DemandaInteres" formData={formData} onChange={handleInputChange} />
@@ -425,26 +432,67 @@ export default function FormularioAvaluo({ setVistaActiva, idEdicion }) {
             <Field label="Terraza" name="PredioTerraza" type="number" col="col-md-2" formData={formData} onChange={handleInputChange} />
             <Field label="Jardín" name="PredioJardin" type="number" col="col-md-2" formData={formData} onChange={handleInputChange} />
             <Field label="Closets" name="PredioCloset" type="number" col="col-md-2" formData={formData} onChange={handleInputChange} />
+            <Field label="Estar Habitación" name="PredioEstarHabitacion" type="number" col="col-md-2" formData={formData} onChange={handleInputChange} />
+            <Field label="Patio Interior" name="PredioPatioInterior" type="number" col="col-md-2" formData={formData} onChange={handleInputChange} />
+            <Field label="Alcoba Servicio" name="PredioAlcobaServicio" type="number" col="col-md-2" formData={formData} onChange={handleInputChange} />
+            <Field label="Baño Servicio" name="PredioBanoServicio" type="number" col="col-md-2" formData={formData} onChange={handleInputChange} />
+            <Field label="Predio Subdividido" name="PredioPredioSubdividido" col="col-md-2" formData={formData} onChange={handleInputChange} />
 
             <div className="col-12 mt-3"><label className="fw-bold text-muted small">Garajes y Otros:</label></div>
             <Field label="Cupos Garaje" name="PredioTotalCuposDeParqueo" type="number" col="col-md-2" formData={formData} onChange={handleInputChange} />
+            <Field label="Bahía comunal" name="PredioBahiaComunal" type="number" col="col-md-2" formData={formData} onChange={handleInputChange} />
+            <Field label="Descubierto" name="PredioDescubierto" type="number" col="col-md-2" formData={formData} onChange={handleInputChange} />
+            <Field label="Privado" name="PredioPrivado" type="number" col="col-md-2" formData={formData} onChange={handleInputChange} />
+            <Field label="Servidumbre" name="PredioServidumbre" type="number" col="col-md-2" formData={formData} onChange={handleInputChange} />
+            <Field label="Uso exclusivo" name="PredioUsoExclusivo" type="number" col="col-md-2" formData={formData} onChange={handleInputChange} />
+            <Field label="Cubierto" name="PredioCubierto" type="number" col="col-md-2" formData={formData} onChange={handleInputChange} />
+            <Field label="Doble" name="PredioDoble" type="number" col="col-md-2" formData={formData} onChange={handleInputChange} />
+            <Field label="Sencillo" name="PredioSencillo" type="number" col="col-md-2" formData={formData} onChange={handleInputChange} />
+            
             <Field label="Bodega" name="PredioBodega" col="col-md-2" formData={formData} onChange={handleInputChange} />
             <Field label="Depósito" name="PredioDeposito" col="col-md-2" formData={formData} onChange={handleInputChange} />
+            <Field label="Tipo Depósito" name="PredioTipoDeposito" col="col-md-2" formData={formData} onChange={handleInputChange} />
             <Field label="Oficina" name="PredioOficina" col="col-md-2" formData={formData} onChange={handleInputChange} />
             <Field label="Local" name="PredioLocal" col="col-md-2" formData={formData} onChange={handleInputChange} />
 
             <div className="col-12"><h6 className="section-title">■ DOTACIÓN COMUNAL</h6></div>
-            <Field label="Valor Admón" name="DCValorAdmon" col="col-md-4" formData={formData} onChange={handleInputChange} />
-            <Field label="Vigilancia Priv." name="DCVigilanciaPrivada" col="col-md-4" formData={formData} onChange={handleInputChange} />
-            <Field label="Ascensores" name="DCAscensores" col="col-md-4" formData={formData} onChange={handleInputChange} />
+            <Field label="Valor Admón" name="DCValorAdmon" col="col-md-3" formData={formData} onChange={handleInputChange} />
+            <Field label="Mensualidad" name="DCMensualidad" col="col-md-3" formData={formData} onChange={handleInputChange} />
+            <Field label="Valor Admón m²" name="DCValorAdmonM2" col="col-md-3" formData={formData} onChange={handleInputChange} />
+            <Field label="Vigilancia Priv." name="DCVigilanciaPrivada" col="col-md-3" formData={formData} onChange={handleInputChange} />
+            <Field label="Ascensores" name="DCAscensores" col="col-md-12" formData={formData} onChange={handleInputChange} />
             <div className="col-12 mt-2 d-flex flex-wrap gap-3">
-              <Checkbox label="Piscina" name="DCPiscina" formData={formData} onChange={handleCheckboxChange} />
-              <Checkbox label="Gimnasio" name="DCGimnasio" formData={formData} onChange={handleCheckboxChange} />
-              <Checkbox label="Salón Comunal" name="DCSalonComunal" formData={formData} onChange={handleCheckboxChange} />
+              <Checkbox label="A.A. Central" name="DCAACentral" formData={formData} onChange={handleCheckboxChange} />
               <Checkbox label="BBQ" name="DCBBQ" formData={formData} onChange={handleCheckboxChange} />
+              <Checkbox label="Bicicletero" name="DCBicicletero" formData={formData} onChange={handleCheckboxChange} />
+              <Checkbox label="Bomba eyect." name="DCBombaEyect" formData={formData} onChange={handleCheckboxChange} />
+              <Checkbox label="Calefacción" name="DCCalefaccion" formData={formData} onChange={handleCheckboxChange} />
+              <Checkbox label="Cancha Multiuso" name="DCCanchaMultiuso" formData={formData} onChange={handleCheckboxChange} />
+              <Checkbox label="Cancha Squash" name="DCCanchaSquash" formData={formData} onChange={handleCheckboxChange} />
               <Checkbox label="CCTV" name="DCCCTV" formData={formData} onChange={handleCheckboxChange} />
+              <Checkbox label="Citofonía" name="DCCitofonia" formData={formData} onChange={handleCheckboxChange} />
+              <Checkbox label="Club House" name="DCClubHouse" formData={formData} onChange={handleCheckboxChange} />
+              <Checkbox label="Equipo Presión" name="DCEquipoPresion" formData={formData} onChange={handleCheckboxChange} />
+              <Checkbox label="Garajes Residentes" name="DCGarajesResidentes" formData={formData} onChange={handleCheckboxChange} />
+              <Checkbox label="Garajes Visitantes" name="DCGarajesVisitantes" formData={formData} onChange={handleCheckboxChange} />
+              <Checkbox label="Gimnasio" name="DCGimnasio" formData={formData} onChange={handleCheckboxChange} />
+              <Checkbox label="Golfito" name="DCGolfito" formData={formData} onChange={handleCheckboxChange} />
+              <Checkbox label="Guardería" name="DCGuarderia" formData={formData} onChange={handleCheckboxChange} />
+              <Checkbox label="Juegos Niños" name="DCJuegosNinos" formData={formData} onChange={handleCheckboxChange} />
+              <Checkbox label="Piscina" name="DCPiscina" formData={formData} onChange={handleCheckboxChange} />
+              <Checkbox label="Planta Eléctrica" name="DCPlantaElectrica" formData={formData} onChange={handleCheckboxChange} />
+              <Checkbox label="Portería" name="DCPorteria" formData={formData} onChange={handleCheckboxChange} />
+              <Checkbox label="Salón Comunal" name="DCSalonComunal" formData={formData} onChange={handleCheckboxChange} />
+              <Checkbox label="Salón de Juegos" name="DCSalonJuegos" formData={formData} onChange={handleCheckboxChange} />
+              <Checkbox label="Sauna" name="DCSauna" formData={formData} onChange={handleCheckboxChange} />
+              <Checkbox label="Shut Basuras" name="DCShutBasuras" formData={formData} onChange={handleCheckboxChange} />
+              <Checkbox label="Tanque de Agua" name="DCTanqueAgua" formData={formData} onChange={handleCheckboxChange} />
+              <Checkbox label="Teatrino" name="DCTeatrino" formData={formData} onChange={handleCheckboxChange} />
+              <Checkbox label="Terraza Comunal" name="DCTerrazaComunal" formData={formData} onChange={handleCheckboxChange} />
+              <Checkbox label="Turco" name="DCTurco" formData={formData} onChange={handleCheckboxChange} />
+              <Checkbox label="Vigilancia 24h" name="DCVigilancia24Horas" formData={formData} onChange={handleCheckboxChange} />
               <Checkbox label="Zonas Verdes" name="DCZonaVerde" formData={formData} onChange={handleCheckboxChange} />
-              <Checkbox label="Parqueo Visitantes" name="DCGarajesVisitantes" formData={formData} onChange={handleCheckboxChange} />
+              <Checkbox label="Otros" name="DCOtros" formData={formData} onChange={handleCheckboxChange} />
             </div>
 
             <div className="col-12"><h6 className="section-title">■ OFERTAS Y VALORACIÓN</h6></div>
@@ -453,7 +501,7 @@ export default function FormularioAvaluo({ setVistaActiva, idEdicion }) {
             </div>
             <div className="table-responsive col-12">
               <table className="table table-sm table-bordered bg-white text-center" style={{ fontSize: '0.8rem' }}>
-                <thead className="table-light"><tr><th>Dirección</th><th>Edad</th><th>A. Lote</th><th>A. Constr</th><th>V. Comercial</th><th></th></tr></thead>
+                <thead className="table-light"><tr><th>Dirección</th><th>Edad</th><th>A. Lote</th><th>A. Constr</th><th>V. Constr</th><th>V. Comercial</th><th></th></tr></thead>
                 <tbody>
                   {tablaOfertas.map((of, i) => (
                     <tr key={i}>
@@ -461,6 +509,7 @@ export default function FormularioAvaluo({ setVistaActiva, idEdicion }) {
                       <td><input type="number" className="form-control form-control-sm border-0" value={of.edad || ''} onChange={(e) => handleOferta(i, 'edad', e.target.value)} /></td>
                       <td><input type="number" className="form-control form-control-sm border-0" value={of.areaLote || ''} onChange={(e) => handleOferta(i, 'areaLote', e.target.value)} /></td>
                       <td><input type="number" className="form-control form-control-sm border-0" value={of.areaConstr || ''} onChange={(e) => handleOferta(i, 'areaConstr', e.target.value)} /></td>
+                      <td><input type="number" className="form-control form-control-sm border-0" value={of.valorConstr || ''} onChange={(e) => handleOferta(i, 'valorConstr', e.target.value)} /></td>
                       <td><input type="number" className="form-control form-control-sm border-0 fw-bold text-success" value={of.valorComercial || ''} onChange={(e) => handleOferta(i, 'valorComercial', e.target.value)} /></td>
                       <td><button type="button" className="btn btn-sm btn-outline-danger py-0" onClick={() => eliminarOferta(i)}>✕</button></td>
                     </tr>
@@ -469,16 +518,25 @@ export default function FormularioAvaluo({ setVistaActiva, idEdicion }) {
               </table>
             </div>
 
-            <Field label="Área Terreno (m²)" name="CVTArea" type="number" col="col-md-4" formData={formData} onChange={handleInputChange} />
-            <Field label="V. Unitario Terreno" name="CVTValorUnitario" type="number" col="col-md-4" formData={formData} onChange={handleInputChange} />
-            <div className="col-md-4">
+            <div className="col-12"><h6 className="section-title">■ CUADROS DE VALORACIÓN</h6></div>
+            <label className="fw-bold text-muted small w-100">TERRENO:</label>
+            <Field label="Descripción Terreno" name="CVTDescripcion" col="col-md-3" formData={formData} onChange={handleInputChange} />
+            <Field label="Unidad Medida" name="CVTUnidadMedida" col="col-md-2" formData={formData} onChange={handleInputChange} />
+            <Field label="Área Terreno" name="CVTArea" type="number" col="col-md-2" formData={formData} onChange={handleInputChange} />
+            <Field label="V. Unitario Terreno" name="CVTValorUnitario" type="number" col="col-md-2" formData={formData} onChange={handleInputChange} />
+            <Field label="Porcentaje" name="CVTPorcentaje" col="col-md-1" formData={formData} onChange={handleInputChange} />
+            <div className="col-md-2">
               <label className="small fw-bold text-success">Total Terreno</label>
               <input readOnly className="form-control form-control-sm bg-light fw-bold text-success" value={"$ " + (Number(formData.CVTArea || 0) * Number(formData.CVTValorUnitario || 0)).toLocaleString('es-CO')} />
             </div>
 
-            <Field label="Área Constr. (m²)" name="CVEArea" type="number" col="col-md-4" formData={formData} onChange={handleInputChange} />
-            <Field label="V. Unitario Constr." name="CVEValorUnitario" type="number" col="col-md-4" formData={formData} onChange={handleInputChange} />
-            <div className="col-md-4">
+            <label className="fw-bold text-muted small w-100 mt-2">EDIFICACIONES:</label>
+            <Field label="Desc. Edificación" name="CVEDescripcion" col="col-md-3" formData={formData} onChange={handleInputChange} />
+            <Field label="Unidad Medida" name="CVEUnidadMedida" col="col-md-2" formData={formData} onChange={handleInputChange} />
+            <Field label="Área Constr." name="CVEArea" type="number" col="col-md-2" formData={formData} onChange={handleInputChange} />
+            <Field label="V. Unit. Constr." name="CVEValorUnitario" type="number" col="col-md-2" formData={formData} onChange={handleInputChange} />
+            <Field label="Porcentaje" name="CVEPorcentaje" col="col-md-1" formData={formData} onChange={handleInputChange} />
+            <div className="col-md-2">
               <label className="small fw-bold text-success">Total Construcción</label>
               <input readOnly className="form-control form-control-sm bg-light fw-bold text-success" value={"$ " + (Number(formData.CVEArea || 0) * Number(formData.CVEValorUnitario || 0)).toLocaleString('es-CO')} />
             </div>
