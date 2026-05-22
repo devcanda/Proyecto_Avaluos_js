@@ -358,7 +358,6 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
                 
                 if (bloque.tipo === 'seccion_sector') {
                     return `
-                    <div style="page-break-before: always;"></div>
                     <table style="width: 100%; border:none; margin-bottom:15px; table-layout: fixed;">
                         <tr>
                             <td style="width: 50%; vertical-align: top; padding-right: 15px;">
@@ -481,7 +480,6 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
                 
                 if (bloque.tipo === 'seccion_textos_legales') {
                     return `
-                    <div style="page-break-before: always;"></div>
                     <div style="font-size: 11px; text-align: justify; margin-bottom: 15px; line-height: 1.45;">
                         <div class="corp-title"><span class="corp-bullet"></span>Definición de Términos y Conceptos</div>
                         <p><b>AVALÚO:</b> Es el estudio o proceso mediante el cual se estima y documenta el valor de un bien raíz o bien inmueble, de acuerdo a la apreciación personal expresada por un profesional...</p>
@@ -508,7 +506,6 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
 
                 if (bloque.tipo === 'seccion_usos_propuestos') {
                     return `
-                    <div style="page-break-before: always;"></div>
                     <div style="margin-bottom: 15px;">
                         <div class="corp-title"><span class="corp-bullet"></span>Usos Propuestos</div>
                         <table class="comparables-table">
@@ -549,7 +546,6 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
 
                 if (bloque.tipo === 'seccion_areas_normatividad') {
                     return `
-                    <div style="page-break-before: always;"></div>
                     <table style="width: 100%; border:none; margin-bottom:15px; table-layout: fixed;">
                         <tr>
                             <td style="width: 50%; vertical-align: top; padding-right: 20px; word-wrap: break-word; overflow-wrap: break-word;">
@@ -606,7 +602,7 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
                             
                             <td style="width: 50%; vertical-align: top; padding-left: 10px; word-wrap: break-word; overflow-wrap: break-word;">
                                 <div class="corp-title"><span class="corp-bullet"></span>Descripción General</div>
-                                <p style="font-size: 11px; text-align: justify; line-height: 1.45; color: #333; margin-bottom: 30px;">${datos.DescripcionGeneral || 'El predio valorado en el siguiente informe es un lote de terreno ubicado en la entrada sur del municipio'}</p>
+                                <p style="font-size: 11px; text-align: justify; line-height: 1.45; color: #333; margin-bottom: 15px;">${datos.DescripcionGeneral || 'El predio valorado en el siguiente informe es un lote de terreno ubicado en la entrada sur del municipio'}</p>
                                 
                                 <div class="corp-title"><span class="corp-bullet"></span>Oferta y Demanda</div>
                                 <table style="width: 100%; border:none; margin-bottom: 10px; table-layout: fixed;">
@@ -643,7 +639,6 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
 
                 if (bloque.tipo === 'seccion_predio_dotacion') {
                     return `
-                    <div style="page-break-before: always;"></div>
                     <table style="width: 100%; border:none; margin-bottom:15px; table-layout: fixed;">
                         <tr>
                             <td style="width: 50%; vertical-align: top; padding-right: 15px;">
