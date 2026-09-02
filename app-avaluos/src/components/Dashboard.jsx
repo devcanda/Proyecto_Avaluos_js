@@ -18,8 +18,29 @@ export default function Dashboard({ setVistaActiva, onEditar, onNuevo }) {
   const hoy = new Date().toISOString().split('T')[0];
 
   const cargarDatos = () => {
-    fetch('http://localhost:3000/api/dashboard').then(res => res.json()).then(data => setKpis(data));
-    fetch('http://localhost:3000/api/avaluos').then(res => res.json()).then(data => setAvaluos(data));
+    fetch('http://localhost:3000/api/dashboard')
+      .then(res => res.json())
+      .then(data => {
+          if (data.error) console.error("Error backend KPIs:", data.error);
+          else setKpis(data);
+      })
+      .catch(e => console.error("Error de red cargando KPIs"));
+      
+    fetch('http://localhost:3000/api/avaluos')
+      .then(res => res.json())
+      .then(data => {
+          // Programación defensiva: Solo guardar si es un Array
+          if (Array.isArray(data)) {
+              setAvaluos(data);
+          } else {
+              console.error("Respuesta inválida del servidor:", data);
+              setAvaluos([]); // Fallback para evitar que .filter() rompa la app
+          }
+      })
+      .catch(e => {
+          console.error("Error de red cargando Avalúos");
+          setAvaluos([]);
+      });
   };
 
   useEffect(() => { cargarDatos(); }, []);

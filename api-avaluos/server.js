@@ -203,26 +203,60 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
             } catch(e) { return dateStr; }
         };
         
-        let croquisFilename = datos.CroquisImg;
-        if (croquisFilename && croquisFilename.includes('/')) croquisFilename = croquisFilename.split('/').pop();
-        const b64Croquis = getBase64Image(croquisFilename);
-        
-        let anexosHTML = '';
+        const b64Croquis = '';
+
+        // Los anexos viajan como DATOS a la plantilla (no como HTML armado aquí).
+        // Si un archivo no existe, el anexo queda con b64 vacío y la plantilla
+        // pinta un placeholder: una foto perdida nunca aborta el informe.
+        let anexos = [];
         if (datos.fotos_anexos) {
             try {
                 const anexosObj = JSON.parse(datos.fotos_anexos);
-                anexosObj.forEach(anexo => {
-                    const b64 = getBase64Image(anexo.filename);
-                    if (b64) {
-                        anexosHTML += `
-                        <div style="width:48%; display:inline-block; margin-bottom:15px; border:1px solid #ccc; padding:5px; text-align:center; box-sizing: border-box; page-break-inside: avoid; background: white;">
-                            <img src="${b64}" style="width:100%; height:220px; object-fit:cover;" />
-                            <div style="background:#f4f6f9; font-weight:bold; padding:6px; font-size:10px; text-transform:uppercase; color:#1a2b4c;">${anexo.titulo || 'ANEXO FOTOGRÁFICO'}</div>
-                        </div>`;
-                    }
-                });
-            } catch(e){}
+                if (Array.isArray(anexosObj)) {
+                    anexos = anexosObj.map((anexo, i) => ({
+                        id_foto: String(anexo.id || i + 1),
+                        titulo: anexo.titulo || 'ANEXO FOTOGRÁFICO',
+                        b64: getBase64Image(anexo.filename || anexo.url)
+                    }));
+                }
+            } catch (e) {
+                console.error("Error parseando anexos:", e);
+            }
         }
+
+        const escapeHTML = (str) => String(str == null ? '' : str)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+        // Capítulo de anexos: hoja nueva + rejilla de 2 fotos por fila.
+        // Cada <tr> es indivisible (break-inside: avoid en la hoja de estilos),
+        // así el pie de foto y su imagen nunca se separan entre páginas.
+        const renderAnexos = (lista) => {
+            if (!lista || lista.length === 0) return '';
+            let html = '<div style="page-break-before: always;"></div>';
+            html += '<div class="corp-title"><span class="corp-bullet"></span>Anexos Fotográficos</div>';
+            html += '<table class="grid-fotos"><tbody>';
+            for (let i = 0; i < lista.length; i += 2) {
+                const par = [lista[i], lista[i + 1]];
+                html += '<tr>';
+                for (const foto of par) {
+                    if (!foto) {
+                        html += '<td class="vacia"></td>';
+                        continue;
+                    }
+                    html += '<td>';
+                    html += `<div class="foto-caption">${escapeHTML(foto.titulo)}</div>`;
+                    html += foto.b64
+                        ? `<img src="${foto.b64}" class="foto-img" />`
+                        : '<div class="foto-fallback">Imagen no disponible</div>';
+                    html += '</td>';
+                }
+                html += '</tr>';
+                if (i + 2 < lista.length) html += '<tr><td class="vacia anexos-spacer" colspan="2"></td></tr>';
+            }
+            html += '</tbody></table>';
+            return html;
+        };
 
         const [plantillas] = await db.query('SELECT * FROM plantillas_pdf WHERE es_predeterminada = 1 LIMIT 1');
         let htmlPlantilla = '';
@@ -255,7 +289,8 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
                     b64MembreteFinal,
                     b64Firma,
                     b64Croquis,
-                    anexosHTML,
+                    anexos,
+                    renderAnexos,
                     formatDate,
                     procesarVariables
                 });
@@ -267,19 +302,23 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
             return res.status(404).send('<div style="padding: 50px; text-align: center; color: red;">No hay una plantilla configurada en el Gestor de Plantillas.</div>');
         }
 
-        const browser = await puppeteer.launch({ headless: 'new' });
-        const page = await browser.newPage();
-        await page.setContent(htmlPlantilla, { waitUntil: 'networkidle0' });
-        
-        await page.pdf({ 
-            path: rutaPDF, 
-            format: 'Letter', 
-            printBackground: true,
-            displayHeaderFooter: false, 
-            margin: { top: '0', bottom: '0', left: '0', right: '0' }
-        });
-        
-        await browser.close();
+        let browser;
+        try {
+            browser = await puppeteer.launch({ headless: 'new', protocolTimeout: 180000 });
+            const page = await browser.newPage();
+            await page.setContent(htmlPlantilla, { waitUntil: 'networkidle0', timeout: 60000 });
+
+            await page.pdf({
+                path: rutaPDF,
+                format: 'Letter',
+                printBackground: true,
+                displayHeaderFooter: false,
+                margin: { top: '0', bottom: '0', left: '0', right: '0' }
+            });
+        } finally {
+            if (browser) await browser.close();
+        }
+
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
         res.setHeader('Pragma', 'no-cache');
         res.setHeader('Expires', '0');
