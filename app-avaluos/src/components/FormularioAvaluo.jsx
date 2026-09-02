@@ -137,6 +137,18 @@ export default function FormularioAvaluo({ setVistaActiva, idEdicion }) {
   };
   const eliminarImagen = (idx) => setImagenesPreview(prev => prev.filter((_, i) => i !== idx));
 
+  // El orden de este arreglo es el orden en que salen los anexos en el PDF:
+  // metaAnexos se construye a partir de él, y el backend lo guarda tal cual.
+  const moverImagen = (idx, desplazamiento) => {
+    setImagenesPreview(prev => {
+      const destino = idx + desplazamiento;
+      if (destino < 0 || destino >= prev.length) return prev;
+      const n = [...prev];
+      [n[idx], n[destino]] = [n[destino], n[idx]];
+      return n;
+    });
+  };
+
   // LÓGICA INTELIGENTE DE GUARDADO DE IMÁGENES
   const confirmarGuardadoFinal = async () => {
     if (!window.confirm("¿Confirmas los datos de este avalúo?")) return;
@@ -549,19 +561,47 @@ export default function FormularioAvaluo({ setVistaActiva, idEdicion }) {
         {pasoFormulario === 4 && (
           <div className="row g-4 fade-in">
             <div className="col-12 text-center py-4">
-              <h3 className="fw-bold" style={{ color: '#1d429a' }}>Anexos Fotográficos Adicionales</h3>
+              <h3 className="fw-bold" style={{ color: '#1d429a' }}>Anexos</h3>
               <p className="text-muted small">Sube aquí las fotos del interior del inmueble (Baños, Cocina, Habitaciones).</p>
               <input type="file" className="d-none" id="upFotos" multiple accept=".jpg,.jpeg,.png" onChange={handleImageUpload} />
               <label htmlFor="upFotos" className="btn btn-primary px-5 rounded-pill fw-bold" style={{ cursor: 'pointer' }}>+ CARGAR FOTOS DE INTERIORES</label>
+              {imagenesPreview.length > 1 && (
+                <p className="text-muted small mt-3 mb-0">
+                  El número indica el orden en que saldrán en el PDF. Usa ◀ ▶ para reacomodarlas.
+                </p>
+              )}
             </div>
             <div className="d-flex flex-wrap gap-3">
               {imagenesPreview.map((img, idx) => (
                 <div key={idx} className="bg-white p-2 border rounded position-relative shadow-sm" style={{ width: '180px' }}>
-                  <button type="button" className="position-absolute top-0 end-0 btn btn-danger btn-sm rounded-circle m-1" style={{ width: '28px', height: '28px', padding: '0' }} onClick={() => eliminarImagen(idx)}>✕</button>
+                  <span
+                    className="position-absolute top-0 start-0 badge rounded-pill m-1"
+                    style={{ backgroundColor: '#1d429a', zIndex: 2 }}
+                    title="Orden en el PDF"
+                  >
+                    {idx + 1}
+                  </span>
+                  <button type="button" className="position-absolute top-0 end-0 btn btn-danger btn-sm rounded-circle m-1" style={{ width: '28px', height: '28px', padding: '0', zIndex: 2 }} onClick={() => eliminarImagen(idx)}>✕</button>
                   <img src={img.url} className="w-100 rounded mb-2" style={{ height: '120px', objectFit: 'cover' }} />
-                  <input className="form-control form-control-sm border-primary" placeholder="Título para el PDF" value={img.titulo} onChange={e => {
+                  <input className="form-control form-control-sm border-primary mb-2" placeholder="Título para el PDF" value={img.titulo} onChange={e => {
                     const n = [...imagenesPreview]; n[idx].titulo = e.target.value; setImagenesPreview(n);
                   }} />
+                  <div className="d-flex gap-1">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-secondary flex-grow-1 py-0"
+                      onClick={() => moverImagen(idx, -1)}
+                      disabled={idx === 0}
+                      title="Mover antes"
+                    >◀</button>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-secondary flex-grow-1 py-0"
+                      onClick={() => moverImagen(idx, 1)}
+                      disabled={idx === imagenesPreview.length - 1}
+                      title="Mover después"
+                    >▶</button>
+                  </div>
                 </div>
               ))}
             </div>

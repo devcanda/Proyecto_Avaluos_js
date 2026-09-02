@@ -224,35 +224,34 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
             }
         }
 
+        // Evita la unidad duplicada ("8.451,11 M² M²", "128 METROS CUADRADOS M²"):
+        // solo agrega "M²" si el funcionario no escribió ya la unidad en el campo.
+        const areaM2 = (valor) => {
+            const s = String(valor == null ? '' : valor).trim();
+            if (!s) return '';
+            return /m²|m2|metro/i.test(s) ? s : `${s} M²`;
+        };
+
         const escapeHTML = (str) => String(str == null ? '' : str)
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
-        // Capítulo de anexos: hoja nueva + rejilla de 2 fotos por fila.
+        // Capítulo "ANEXOS": hoja nueva y las fotos una debajo de la otra, en el
+        // mismo orden en que el funcionario las dejó en el formulario.
         // Cada <tr> es indivisible (break-inside: avoid en la hoja de estilos),
         // así el pie de foto y su imagen nunca se separan entre páginas.
         const renderAnexos = (lista) => {
             if (!lista || lista.length === 0) return '';
             let html = '<div style="page-break-before: always;"></div>';
-            html += '<div class="corp-title"><span class="corp-bullet"></span>Anexos Fotográficos</div>';
-            html += '<table class="grid-fotos"><tbody>';
-            for (let i = 0; i < lista.length; i += 2) {
-                const par = [lista[i], lista[i + 1]];
-                html += '<tr>';
-                for (const foto of par) {
-                    if (!foto) {
-                        html += '<td class="vacia"></td>';
-                        continue;
-                    }
-                    html += '<td>';
-                    html += `<div class="foto-caption">${escapeHTML(foto.titulo)}</div>`;
-                    html += foto.b64
-                        ? `<img src="${foto.b64}" class="foto-img" />`
-                        : '<div class="foto-fallback">Imagen no disponible</div>';
-                    html += '</td>';
-                }
-                html += '</tr>';
-                if (i + 2 < lista.length) html += '<tr><td class="vacia anexos-spacer" colspan="2"></td></tr>';
+            html += '<div class="corp-title"><span class="corp-bullet"></span>Anexos</div>';
+            html += '<table class="grid-anexos"><tbody>';
+            for (const foto of lista) {
+                html += '<tr><td>';
+                if (foto.titulo) html += `<div class="anexo-caption">${escapeHTML(foto.titulo)}</div>`;
+                html += foto.b64
+                    ? `<img src="${foto.b64}" class="anexo-img" />`
+                    : '<div class="anexo-fallback">Imagen no disponible</div>';
+                html += '</td></tr>';
             }
             html += '</tbody></table>';
             return html;
@@ -291,6 +290,7 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
                     b64Croquis,
                     anexos,
                     renderAnexos,
+                    areaM2,
                     formatDate,
                     procesarVariables
                 });

@@ -21,9 +21,8 @@ const BLOQUES_PREDEFINIDOS = [
   { tipo: 'seccion_croquis', label: '4. Croquis', default: { id: Date.now(), tipo: 'seccion_croquis' } },
   { tipo: 'seccion_sector', label: '5. Sector y Estructura', default: { id: Date.now(), tipo: 'seccion_sector' } },
   { tipo: 'seccion_comparables_valoracion', label: '6. Comparables/Valor', default: { id: Date.now(), tipo: 'seccion_comparables_valoracion' } },
-  { tipo: 'seccion_usos_propuestos', label: '7. Usos Propuestos', default: { id: Date.now(), tipo: 'seccion_usos_propuestos' } },
-  { tipo: 'seccion_textos_legales', label: '8. Textos Legales', default: { id: Date.now(), tipo: 'seccion_textos_legales' } },
-  { tipo: 'seccion_anexos_fotograficos', label: '9. Anexos Fotográficos', default: { id: Date.now(), tipo: 'seccion_anexos_fotograficos' } }
+  { tipo: 'seccion_textos_legales', label: '7. Textos Legales', default: { id: Date.now(), tipo: 'seccion_textos_legales' } },
+  { tipo: 'seccion_anexos_fotograficos', label: '8. Anexos Fotográficos', default: { id: Date.now(), tipo: 'seccion_anexos_fotograficos' } }
 ];
 
 export default function GestorPlantillas() {
@@ -39,14 +38,13 @@ export default function GestorPlantillas() {
   // Lienzo
   const [elementosLienzo, setElementosLienzo] = useState([
     { id: 1, tipo: 'seccion_general_imagenes' },
-    { id: 2, tipo: 'seccion_sector' },
-    { id: 3, tipo: 'seccion_areas_normatividad' },
+    { id: 2, tipo: 'seccion_areas_normatividad' },
+    { id: 3, tipo: 'seccion_sector' },
     { id: 4, tipo: 'seccion_predio_dotacion' },
-    { id: 5, tipo: 'seccion_croquis' },
-    { id: 6, tipo: 'seccion_comparables_valoracion' },
-    { id: 7, tipo: 'seccion_usos_propuestos' },
-    { id: 8, tipo: 'seccion_textos_legales' },
-    { id: 9, tipo: 'seccion_anexos_fotograficos' }
+    { id: 5, tipo: 'seccion_comparables_valoracion' },
+    { id: 6, tipo: 'seccion_croquis' },
+    { id: 7, tipo: 'seccion_anexos_fotograficos' },
+    { id: 8, tipo: 'seccion_textos_legales' }
   ]);
 
   const [notificacion, setNotificacion] = useState({ mostrar: false, mensaje: '', tipo: 'success' });
@@ -194,14 +192,6 @@ export default function GestorPlantillas() {
             <div className="text-center text-muted p-3 border rounded bg-light" style={{borderStyle: 'dashed !important'}}>
               <i className="bi bi-file-text fs-1 mb-2 d-block"></i>
               <b>Sección: Términos, Condicionantes y Metodología</b><br/>
-              <small>(Diseño exacto inyectado en el PDF)</small>
-            </div>
-          )}
-
-          {bloque.tipo === 'seccion_usos_propuestos' && (
-            <div className="text-center text-muted p-3 border rounded bg-light" style={{borderStyle: 'dashed !important'}}>
-              <i className="bi bi-table fs-1 mb-2 d-block"></i>
-              <b>Sección: Tabla de Usos Propuestos</b><br/>
               <small>(Diseño exacto inyectado en el PDF)</small>
             </div>
           )}

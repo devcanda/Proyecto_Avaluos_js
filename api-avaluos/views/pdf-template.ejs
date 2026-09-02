@@ -90,6 +90,19 @@
         .corp-title, .corp-subtitle, .foto-box { page-break-after: avoid; break-after: avoid; }
         .card-block { page-break-inside: avoid; break-inside: avoid; }
 
+        /* CIERRE DE LA VALORACIÓN: datos del valuador y, debajo, su firma. */
+        .firma-cierre { margin-top: 40px; border-top: 1px solid #ddd; padding-top: 15px; page-break-inside: avoid; break-inside: avoid; }
+        .firma-nombre { color: #1d429a; font-size: 14px; font-weight: bold; margin-bottom: 4px; }
+        .firma-cargo { font-size: 11px; color: #333; margin-bottom: 6px; }
+        .firma-registro { font-size: 10px; color: #666; line-height: 1.3; }
+        .firma-img { display: block; max-width: 200px; max-height: 70px; object-fit: contain; margin-top: 10px; }
+        .firma-pendiente { color: #ccc; font-style: italic; font-size: 10px; margin-top: 10px; }
+
+        /* TEXTOS LEGALES: bloque largo que sí debe fluir entre hojas, pero sin
+           dejar líneas sueltas ni separar un párrafo de su título. */
+        .textos-legales { font-size: 11px; text-align: justify; margin-bottom: 15px; line-height: 1.45; }
+        .textos-legales p { margin: 0 0 8px 0; orphans: 3; widows: 3; page-break-inside: avoid; break-inside: avoid; }
+
         /* ANEXOS FOTOGRÁFICOS */
         .foto-box { background:#f4f6f9; padding:5px; border:1px solid #ccc; font-weight:bold; color:#1a2b4c; font-size:10px; margin-bottom:5px; text-align: center; }
         table.grid-fotos { width: 100%; border-collapse: separate; border-spacing: 14px 0; table-layout: fixed; }
@@ -101,7 +114,20 @@
            deforma ni desborda, cualquiera sea su resolución u orientación. */
         .foto-img { width: 100%; height: 190px; object-fit: contain; display: block; }
         .foto-fallback { width: 100%; height: 190px; border: 1px dashed #ccc; color: #999; font-size: 10px; text-align: center; line-height: 190px; }
-        .anexos-spacer { height: 14px; }
+
+        /*
+          CAPÍTULO "ANEXOS": una foto debajo de la otra, sin cuadro delimitador.
+          Se usa tabla de una sola columna porque la fila (<tr>) es la unidad de
+          paginación fiable en Chromium: el pie nunca se separa de su imagen.
+          max-height 300px deja 2 fotos por hoja con holgura (área útil ~709px
+          en la primera hoja, ya descontado el título).
+        */
+        table.grid-anexos { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        table.grid-anexos > tbody > tr { page-break-inside: avoid; break-inside: avoid; }
+        table.grid-anexos > tbody > tr > td { width: 100%; border: none; background: transparent; padding: 0 0 20px 0; text-align: center; }
+        .anexo-caption { color: #1d429a; font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 6px; text-align: center; }
+        .anexo-img { display: block; margin: 0 auto; max-width: 100%; max-height: 300px; }
+        .anexo-fallback { max-width: 100%; height: 300px; border: 1px dashed #ccc; color: #999; font-size: 10px; text-align: center; line-height: 300px; }
     </style>
 </head>
 <body>
@@ -272,7 +298,7 @@
                                                     <span><%- datos.Ruido ? '&#9679;' : '&#9675;' %></span> <span style="color:#333;">Ruido</span>
                                                 </div>
                                                 <div class="corp-subtitle">Observaciones</div>
-                                                <p class="corp-text"><%= datos.SectorObservaciones || 'No se evidencia ningún impacto ambiental negativo, excepto por la polución vehicular.' %></p>
+                                                <p class="corp-text"><%= datos.SectorObservaciones || '' %></p>
                                             </div>
                                         </td>
                                         <td>
@@ -306,7 +332,7 @@
                                                     <tr><td style="color:#2d56a0;">Irregularidad altura</td><td><%= datos.IrregularidadAltura || '' %></td></tr>
                                                 </table>
                                                 <div class="corp-subtitle">Comentarios de la estructura</div>
-                                                <p class="corp-text"><%= datos.ComentariosDeLaEstructura || 'No se evidencia ninguna clase de construcción sobre el lote objeto de avalúo.' %></p>
+                                                <p class="corp-text"><%= datos.ComentariosDeLaEstructura || '' %></p>
                                             </div>
                                         </td>
                                     </tr>
@@ -352,7 +378,7 @@
                                                 </div>
 
                                                 <div class="corp-subtitle">Perspectivas de valorización</div>
-                                                <p class="corp-text"><%= datos.PerspectivasDeValorizacion || 'De acuerdo con las condiciones del sector y a la dinámica del mercado, se consideran perspectivas de valoración altas.' %></p>
+                                                <p class="corp-text"><%= datos.PerspectivasDeValorizacion || '' %></p>
                                             </div>
                                         </td>
                                     </tr>
@@ -382,7 +408,7 @@
                                         </td>
                                         <td>
                                             <div class="corp-title"><span class="corp-bullet"></span>Descripción General</div>
-                                            <p class="corp-text" style="margin-bottom: 15px;"><%= datos.DescripcionGeneral || 'El predio valorado en el siguiente informe es un lote de terreno ubicado en la entrada sur del municipio' %></p>
+                                            <p class="corp-text" style="margin-bottom: 15px;"><%= datos.DescripcionGeneral || '' %></p>
                                         </td>
                                     </tr>
                                     <tr>
@@ -392,7 +418,7 @@
 
                                                 <div class="corp-subtitle" style="margin-top: 0; margin-bottom: 8px;">Información del área</div>
                                                 <div class="corp-badge">ÁREA LOTE</div>
-                                                <div style="display:inline-block; margin-left: 15px; color:#333; font-weight:bold; font-size:11px;"><%= datos.AreaLote || '0' %> M²</div>
+                                                <div style="display:inline-block; margin-left: 15px; color:#333; font-weight:bold; font-size:11px;"><%= areaM2(datos.AreaLote) %></div>
                                                 <table class="zebra-table">
                                                     <tr><td class="zebra-label">Forma</td><td class="zebra-value"><%= datos.Forma || '' %></td></tr>
                                                     <tr><td class="zebra-label">Topografía</td><td class="zebra-value"><%= datos.Topografia || '' %></td></tr>
@@ -414,17 +440,17 @@
                                             <div class="card-block">
                                                 <div class="corp-subtitle" style="margin-top: 0; margin-bottom: 8px;">Áreas construidas</div>
                                                 <div class="corp-badge">ÁREA VALORADA</div>
-                                                <div style="display:inline-block; margin-left: 15px; color:#333; font-weight:bold; font-size:11px;"><%= datos.AreaValorada || '0' %> M²</div>
+                                                <div style="display:inline-block; margin-left: 15px; color:#333; font-weight:bold; font-size:11px;"><%= areaM2(datos.AreaValorada) %></div>
                                                 <table class="zebra-table">
-                                                    <tr><td class="zebra-label">Área medida en la inspección</td><td class="zebra-value"><%= datos.AreaMedidaEnLaInspeccion || '0' %> M²</td></tr>
-                                                    <tr><td class="zebra-label">Área registrada en título</td><td class="zebra-value"><%= datos.AreaRegistradaEnTitulo || '0' %> M²</td></tr>
-                                                    <tr><td class="zebra-label">Área susceptible de legalización</td><td class="zebra-value"><%= datos.AreaSusceptibleDeLegalizacion || '0' %> M²</td></tr>
-                                                    <tr><td class="zebra-label">Área catastral</td><td class="zebra-value"><%= datos.AreaCatastral || '0' %> M²</td></tr>
+                                                    <tr><td class="zebra-label">Área medida en la inspección</td><td class="zebra-value"><%= areaM2(datos.AreaMedidaEnLaInspeccion) %></td></tr>
+                                                    <tr><td class="zebra-label">Área registrada en título</td><td class="zebra-value"><%= areaM2(datos.AreaRegistradaEnTitulo) %></td></tr>
+                                                    <tr><td class="zebra-label">Área susceptible de legalización</td><td class="zebra-value"><%= areaM2(datos.AreaSusceptibleDeLegalizacion) %></td></tr>
+                                                    <tr><td class="zebra-label">Área catastral</td><td class="zebra-value"><%= areaM2(datos.AreaCatastral) %></td></tr>
                                                     <tr><td class="zebra-label">Área licencia de construcción</td><td class="zebra-value"><%= datos.AreaLicenciaDeConstruccion || '' %></td></tr>
                                                 </table>
 
                                                 <div class="corp-subtitle">Observaciones</div>
-                                                <p class="corp-text" style="color:#555;"><%= datos.AreaValoradaObservaciones || 'Nota: se toma la decisión de liquidar lo máximo permitido por la excelente y estratégica ubicación del predio objeto del encargo valuatorio.' %></p>
+                                                <p class="corp-text" style="color:#555;"><%= datos.AreaValoradaObservaciones || '' %></p>
                                             </div>
                                         </td>
                                     </tr>
@@ -444,7 +470,7 @@
                                                 </table>
 
                                                 <div class="corp-subtitle">Comportamiento oferta y demanda</div>
-                                                <p class="corp-text"><%= datos.ComportamientoOfertayDemanda || 'Del análisis del segmento del mercado relativo a los inmuebles comparables con el que se valora, se deduce que la oferta en la zona es baja por encontrarse la mayoría de los lotes y predios adjudicados, contraria a la demanda alta.' %></p>
+                                                <p class="corp-text"><%= datos.ComportamientoOfertayDemanda || '' %></p>
                                             </div>
                                         </td>
                                         <td>
@@ -453,7 +479,7 @@
                                                 <p class="corp-text"><%= datos.DescripcionSectorInmobiliario || '' %></p>
 
                                                 <div class="corp-subtitle">Actualidad edificadora</div>
-                                                <p class="corp-text"><%= datos.ActualidadEdificadora || 'En el sector donde se localiza el inmueble objeto del Avalúo, se evidencia una actividad edificadora creciente.' %></p>
+                                                <p class="corp-text"><%= datos.ActualidadEdificadora || '' %></p>
                                             </div>
                                         </td>
                                     </tr>
@@ -581,42 +607,38 @@
                         <% } %>
 
                         <% if (bloque.tipo === 'seccion_textos_legales') { %>
-                            <div style="font-size: 11px; text-align: justify; margin-bottom: 15px; line-height: 1.45;">
+                            <div style="page-break-before: always;"></div>
+                            <div class="textos-legales">
                                 <div class="corp-title"><span class="corp-bullet"></span>Definición de Términos y Conceptos</div>
-                                <p><b>AVALÚO:</b> Es el estudio o proceso mediante el cual se estima y documenta el valor de un bien raíz o bien inmueble, de acuerdo a la apreciación personal expresada por un profesional...</p>
-                                <p><b>VALOR COMERCIAL:</b> Es la cantidad estimada de dinero circulante a cambio de la cual el vendedor y el comprador del bien que se valúa...</p>
+                                <p><b>AVALÚO:</b> Es el estudio o proceso mediante el cual se estima y documenta el valor de un bien raíz o bien inmueble, de acuerdo a la apreciación personal expresada por un profesional que cuenta con los conocimientos técnicos, aplique normas y procedimientos generalmente aceptados en esta especialidad y cuya ética y desempeño avalen la confiabilidad de su valuación.</p>
+                                <p><b>VALOR COMERCIAL:</b> Es la cantidad estimada de dinero circulante a cambio de la cual el vendedor y el comprador del bien que se valúa, estando bien informados y sin ningún tipo de presión o apremio, estarían dispuestos a aceptar en efectivo por su enajenación con una promoción suficiente y adecuada a su mercado.</p>
 
                                 <div class="corp-title" style="margin-top: 20px;"><span class="corp-bullet"></span>Condicionantes y Salvedades al Avalúo</div>
-                                <p>Conforme al artículo 18 de la Resolución 620, del 23/09/2008, del IGAC; por la cual se establece la metodología...</p>
-                                <p>La información y antecedentes de propiedad asentados en el presente Avalúo es la contenida en la documentación oficial...</p>
+                                <p>Conforme al artículo 18 de la <b>Resolución 620</b>, del 23/09/2008, del IGAC; por la cual se establece la metodología para la realización de los avalúos ordenados por la Ley 388 de 1.997; en lo referente a los avalúos de inmuebles sometidos a régimen de propiedad horizontal; el presente avalúo se practicará únicamente para las áreas privadas que legalmente existan. Conforme a lo determinado en el <b>Art. 14 del Dcto. 1420 de 1998</b>; la compañía valuadora así como el valuador no serán responsables de la veracidad de la información recibida del solicitante, con excepción de la concordancia de la reglamentación urbanística que afecte o haya afectado al inmueble objeto del avalúo al momento de la realización de este.</p>
+                                <p>La información y antecedentes de propiedad asentados en el presente Avalúo es la contenida en la documentación oficial proporcionada por el solicitante del propio Avalúo y/o propietario del bien a valuar, la cual asumimos como correcta. Entre ella, podemos mencionar a la escritura de propiedad o documento que lo identifica legalmente, los planos arquitectónicos y el registro catastral (boleta predial).</p>
+                                <p><b>Los valores</b> comerciales asignados a los inmuebles, tienen que ver directamente con el área determinada en los documentos públicos suministrados por el interesado y áreas susceptibles de legalizar.</p>
+                                <p>El presente avalúo no tiene en cuenta para la determinación del valor aspectos de orden jurídico de ninguna índole.</p>
+                                <p>Se entienden incluidas dentro del valor del inmueble, como es técnica valuatoria común para inmuebles sometidos al régimen de propiedad horizontal, el valor proporcional de los bienes comunes.</p>
+                                <p>En cuanto a la incidencia que sobre el valor pueda tener la existencia de contratos de arrendamiento o de otro género, asumimos que el titular del derecho de propiedad tiene el uso y goce de todas las facultades que se derivan de este.</p>
+                                <p><b>La presente tasación</b> no constituye un dictamen estructural, de cimentación o de cualquier otra rama de la ingeniería civil o la arquitectura que no sea objeto de la valuación, por lo tanto no puede ser utilizado para fines relacionados con esas ramas ni se asume responsabilidad por vicios ocultos u otras características del inmueble que no puedan ser apreciadas en una visita normal de inspección física para efectos de tasación. Incluso cuando se aprecien algunas características que puedan constituir anomalías con respecto al estado de conservación normal -según la vida útil consumida- de un inmueble o a su estructura, el valuador no asume mayor responsabilidad que así indicarlo cuando son detectadas, ya que aunque se presenten estados de conservación malos o ruinosos, es obligación del perito realizar la tasación según los criterios y normas vigentes y aplicables según el propósito del mismo.</p>
+                                <p><b>Vigencia del avalúo:</b> De acuerdo a lo establecido por los decretos 1420/1998 y 422/2000, expedidos por el Ministerio de Hacienda y Crédito Público y ministerio de Desarrollo Económico, el presente avalúo comercial tiene una vigencia de un año, contado desde la fecha de expedición, siempre y cuando las condiciones físicas y normativas del inmueble valuado, no sufran cambios significativos, así como tampoco se presenten variaciones representativas del mercado inmobiliario comparable.</p>
+                                <p><b>El profesional que firma</b> declara que no tiene hoy, ni espera tener en el futuro, interés en la propiedad valorada; ni participación en los usos que se hagan del avalúo, ni con las personas que participen en la operación. Ha inspeccionado el inmueble y la información es la observada; los inconvenientes y limitaciones que pueda tener el bien y su vecindario, están mencionados. Además, se mantendrá un nivel de confidencialidad, acorde a las exigencias del solicitante. No es responsabilidad del valuador, el uso de este informe, para un fin distinto al que fue solicitado.</p>
+                                <p><b>El presente Avalúo es de USO exclusivo del(os) solicitante(s)</b> para el destino o propósito expresado en el mismo, por lo que no podrá ser utilizado para fines distintos.</p>
 
                                 <div class="corp-title" style="margin-top: 20px;"><span class="corp-bullet"></span>Metodología Valuatoria</div>
-                                <p>Método Físico, Directo o enfoque de COSTOS, es el proceso técnico necesario para estimar el costo de reproducción o de reemplazo...</p>
-                                <p>Método Comparativo o de MERCADO, es el desarrollo analítico a través del cual se obtiene un valor que resulta de comparar el bien que se valúa...</p>
+                                <p><b>Método Físico, Directo o enfoque de COSTOS</b>, es el proceso técnico necesario para estimar el costo de reproducción o de reemplazo de un bien similar al que se valúa, afectado por la Depreciación atribuible a los factores de Edad, Estado de Conservación y Obsolescencia observados.</p>
+                                <p><b>Método de Capitalización de Rentas o enfoque de INGRESOS</b>, es el procedimiento mediante el cual se estima el valor presente o capitalizado de los ingresos netos por rentas que produce o es susceptible de producir un inmueble a la fecha del avalúo durante un largo plazo (mayor a 50 años) de modo constante (a perpetuidad), descontados por una determinada tasa de capitalización (real) aplicable al caso en estudio.</p>
+                                <p><b>Método Comparativo o de MERCADO</b>, es el desarrollo analítico a través del cual se obtiene un valor que resulta de comparar el bien que se valúa (sujeto) con el precio ofertado ó de venta de cuando menos tres bienes similares (comparables), ajustados por sus principales factores diferenciales (homologación).</p>
                             </div>
                         <% } %>
 
-                        <% if (bloque.tipo === 'seccion_usos_propuestos') { %>
-                            <div style="margin-bottom: 15px;" class="card-block">
-                                <div class="corp-title"><span class="corp-bullet"></span>Usos Propuestos</div>
-                                <table class="comparables-table">
-                                    <tr>
-                                        <th>Globo de Terreno</th>
-                                        <th>Uso Principal</th>
-                                        <th>Uso Complementario</th>
-                                        <th>Uso Compatible</th>
-                                        <th>Normas Particulares</th>
-                                    </tr>
-                                    <tr>
-                                        <td style="text-align: center; font-weight: bold; color: #2d56a0;">M 01 A</td>
-                                        <td><%= datos.UsoPrincipal || 'Dotacional Servicios Básicos' %></td>
-                                        <td>Comercial C3, Actividades relacionadas...</td>
-                                        <td>Estaciones de Servicio...</td>
-                                        <td>Uso Principal de cobertura regional</td>
-                                    </tr>
-                                </table>
-                            </div>
-                        <% } %>
+                        <%
+                          /* "Usos Propuestos" se eliminó: su contenido ("M 01 A",
+                             "Comercial C3...", "Estaciones de Servicio...") era data
+                             fija del avalúo de INFITULUA y se imprimía igual en todos
+                             los informes. Si algún día se necesita, debe alimentarse
+                             de campos del formulario, no de texto incrustado. */
+                        %>
 
                         <%
                           /* El croquis solo se imprime si de verdad hay imagen. Antes se
@@ -655,7 +677,7 @@
                             </table>
 
                             <div class="corp-title" style="margin-top: 20px;"><span class="corp-bullet"></span>Diagnostico valores de referencia</div>
-                            <p class="corp-text"><%= datos.DVRDiagnostico || 'Se realizó la búsqueda de inmuebles con características similares al inmueble objeto del avalúo...' %></p>
+                            <p class="corp-text"><%= datos.DVRDiagnostico || '' %></p>
 
                             <div class="corp-subtitle" style="margin-top:20px; margin-bottom: 5px;">Cuadro de valoración terreno</div>
                             <table class="comparables-table" style="text-align: center;">
@@ -687,28 +709,27 @@
                                 <tr class="row-total"><td colspan="2" class="label-total">SUBTOTAL EDIFICACIONES</td><td><%= datos.CVEArea || '0' %></td><td colspan="2"></td><td><%= (Number(datos.CVEArea || 0) * Number(datos.CVEValorUnitario || 0)).toLocaleString('es-CO') %></td><td><%= datos.CVEPorcentaje || '' %></td></tr>
                             </table>
 
-                            <!-- CAJA DE FIRMA AL FINAL DEL DOCUMENTO -->
-                            <div style="margin-top: 40px; border-top: 1px solid #ddd; padding-top: 15px;" class="card-block">
-                                <div style="color: #1d429a; font-size: 14px; font-weight: bold; margin-bottom: 4px;">Diego Antonio Candamil Rengifo</div>
-                                <table style="width: 100%; border:none; margin-bottom: 12px;">
-                                    <tr>
-                                        <td style="width: 60%; vertical-align: top; padding: 0;">
-                                            <div style="font-size: 11px; color: #333; margin-bottom: 6px;">Valuador</div>
-                                            <div style="font-size: 10px; color: #666; line-height: 1.3;">
-                                                R.A.A. AVAL-94355782<br/>
-                                                Inmuebles Urbanos-Rurales
-                                            </div>
-                                        </td>
-                                        <td style="width: 40%; vertical-align: middle; text-align: right; padding: 0;">
-                                            <% if (b64Firma) { %>
-                                                <img src="<%= b64Firma %>" style="max-width:160px; max-height: 60px; object-fit: contain;" />
-                                            <% } else { %>
-                                                <div style="height:40px; color:#ccc; font-style:italic; font-size:10px; text-align:right; line-height:40px;">(Firma pendiente)</div>
-                                            <% } %>
-                                        </td>
-                                    </tr>
-                                </table>
+                            <!--
+                              CAJA DE FIRMA AL FINAL DE LA VALORACIÓN.
+                              La firma va DEBAJO de los datos del valuador (antes iba en
+                              una celda al 40% alineada a la derecha, muy separada).
+                              El bloque es indivisible y cierra la hoja: lo que siga
+                              arranca en página nueva.
+                            -->
+                            <div class="firma-cierre">
+                                <div class="firma-nombre">Diego Antonio Candamil Rengifo</div>
+                                <div class="firma-cargo">Valuador</div>
+                                <div class="firma-registro">
+                                    R.A.A. AVAL-94355782<br/>
+                                    Inmuebles Urbanos-Rurales
+                                </div>
+                                <% if (b64Firma) { %>
+                                    <img src="<%= b64Firma %>" class="firma-img" />
+                                <% } else { %>
+                                    <div class="firma-pendiente">(Firma pendiente)</div>
+                                <% } %>
                             </div>
+                            <div style="page-break-after: always;"></div>
                         <% } %>
 
                         <%
