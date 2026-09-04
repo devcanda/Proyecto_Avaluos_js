@@ -3,6 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <style>
+        /*
+          @page va SIN márgenes a propósito. El membrete es una imagen
+          position:fixed anclada al área de contenido: si se declara un margen
+          aquí, la imagen se recorta en ese borde y desaparecen la franja de
+          contacto y la barra azul del pie. La reserva del pie se hace con el
+          <tfoot> de la tabla de maquetación (ver más abajo).
+        */
         @page { margin: 0; size: letter; }
         * { box-sizing: border-box; }
         body { font-family: 'Helvetica', 'Arial', sans-serif; color: #333; font-size: 10px; line-height: 1.4; margin: 0; padding: 0; }
@@ -21,7 +28,7 @@
         .zebra-table-2 td { padding: 5px 8px; color: #333333; }
         .zebra-table-2 tr:nth-child(even) { background-color: #f4f6f9; }
         .corp-badge { background: #1d429a; color: white; padding: 5px 10px; font-weight: bold; font-size: 11px; display: inline-block; text-transform: uppercase; margin-bottom: 8px; }
-        .corp-subtitle { color: #2d56a0; font-size: 11px; margin-top: 12px; margin-bottom: 4px; font-weight: bold; }
+        .corp-subtitle { color: #2d56a0; font-size: 11px; margin-top: 9px; margin-bottom: 4px; font-weight: bold; }
         .corp-text { font-size: 11px; text-align: justify; line-height: 1.45; color: #333; margin-top: 2px; }
 
         /*
@@ -52,6 +59,13 @@
         /* MARCO DE PÁGINA: thead/tfoot reservan el espacio del membrete en CADA hoja */
         table.page-layout { width: 100%; border-collapse: collapse; border: none; }
         table.page-layout > thead > tr > td { height: 3.8cm; border: none; padding: 0; }
+        /*
+          ESTA es la reserva del pie, y se repite en todas las hojas porque
+          Chromium repite <tfoot> al fragmentar la tabla. No se puede sustituir
+          por el margen de page.pdf(): ese margen queda anulado por @page y solo
+          sirve para ubicar la numeración de páginas. Reducirlo hacía que el
+          texto se montara sobre la franja de contacto del membrete.
+        */
         table.page-layout > tfoot > tr > td { height: 4.2cm; border: none; padding: 0; }
         table.page-layout > tbody > tr > td { padding: 0.2cm 2cm; border: none; }
 
@@ -60,7 +74,7 @@
         table.data-table th, table.data-table td { border: 1px solid #dee2e6; padding: 5px 6px; text-align: left; font-size: 9.5px; }
         table.data-table th { background-color: #f4f6f9; color: #1a2b4c; width: 23%; font-weight: bold; }
         table.data-table td { width: 27%; color: #444; }
-        .comparables-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 11px; }
+        .comparables-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 11px; }
         .comparables-table th, .comparables-table td { border: 1px solid #dee2e6; padding: 5px 6px; }
         .comparables-table th { background-color: #f4f6f9; color: #2d56a0; font-weight: bold; }
         .comparables-table td { color: #333; }
@@ -88,7 +102,55 @@
 
         /* Un título nunca queda huérfano al final de la hoja */
         .corp-title, .corp-subtitle, .foto-box { page-break-after: avoid; break-after: avoid; }
-        .card-block { page-break-inside: avoid; break-inside: avoid; }
+
+        /*
+          Granularidad de paginación: lo indivisible es la FILA DE TABLA, no el
+          bloque completo. Antes .card-block era indivisible y, al no caber en
+          el espacio restante, saltaba entero dejando media hoja en blanco.
+          Ahora el contenido llena la hoja y solo se corta entre filas, que es
+          un corte natural y legible.
+        */
+        .zebra-table tr, .zebra-table-2 tr, .comparables-table tr,
+        table.check-grid > tbody > tr, table.data-table tr {
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+
+        /*
+          SELECCIONABLES: rejilla alineada, como la plantilla de referencia.
+          Columnas fijas + filas cebra: la vista puede recorrer la columna en
+          vez de rastrear texto corrido. La casilla es cuadrada (selección
+          múltiple), rellena cuando está marcada. La etiqueta va en gris
+          neutro para que lo que resalte sea el estado, no el texto.
+        */
+        table.check-grid { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 10.5px; margin: 4px 0 12px 0; }
+        table.check-grid td { padding: 5px 7px; border: 1px solid #e6eaf0; color: #333; }
+        table.check-grid tr:nth-child(even) td { background-color: #f4f6f9; }
+        table.check-grid td.vacia { border: none; background: transparent; }
+        .chk { display: inline-block; width: 9px; height: 9px; border: 1px solid #2d56a0; margin-right: 6px; vertical-align: -1px; background-color: transparent; }
+        .chk-on { background-color: #2d56a0; }
+
+        /* RESULTADO DE VALORES: el dato más importante del informe, destacado
+           como en la plantilla de referencia. */
+        table.resultado-valores { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 11px; margin-bottom: 4px; page-break-inside: avoid; break-inside: avoid; }
+        table.resultado-valores td { padding: 5px 10px; border: 1px solid #dee2e6; }
+        .rv-label { width: 50%; color: #2d56a0; font-weight: bold; }
+        .rv-valor { width: 32%; text-align: right; color: #333; }
+        .rv-pct { width: 18%; text-align: right; color: #666; }
+        table.resultado-valores tr.rv-total td { background-color: #1d429a; border-color: #1d429a; color: #ffffff; font-weight: bold; font-size: 13px; }
+
+        /* CIERRE DE LA VALORACIÓN: datos del valuador y, debajo, su firma. */
+        .firma-cierre { margin-top: 10px; border-top: 1px solid #ddd; padding-top: 10px; page-break-inside: avoid; break-inside: avoid; }
+        .firma-nombre { color: #1d429a; font-size: 14px; font-weight: bold; margin-bottom: 4px; }
+        .firma-cargo { font-size: 11px; color: #333; margin-bottom: 6px; }
+        .firma-registro { font-size: 10px; color: #666; line-height: 1.3; }
+        .firma-img { display: block; max-width: 200px; max-height: 62px; object-fit: contain; margin-top: 10px; }
+        .firma-pendiente { color: #ccc; font-style: italic; font-size: 10px; margin-top: 10px; }
+
+        /* TEXTOS LEGALES: bloque largo que sí debe fluir entre hojas, pero sin
+           dejar líneas sueltas ni separar un párrafo de su título. */
+        .textos-legales { font-size: 11px; text-align: justify; margin-bottom: 15px; line-height: 1.45; }
+        .textos-legales p { margin: 0 0 8px 0; orphans: 3; widows: 3; page-break-inside: avoid; break-inside: avoid; }
 
         /* ANEXOS FOTOGRÁFICOS */
         .foto-box { background:#f4f6f9; padding:5px; border:1px solid #ccc; font-weight:bold; color:#1a2b4c; font-size:10px; margin-bottom:5px; text-align: center; }
@@ -101,7 +163,20 @@
            deforma ni desborda, cualquiera sea su resolución u orientación. */
         .foto-img { width: 100%; height: 190px; object-fit: contain; display: block; }
         .foto-fallback { width: 100%; height: 190px; border: 1px dashed #ccc; color: #999; font-size: 10px; text-align: center; line-height: 190px; }
-        .anexos-spacer { height: 14px; }
+
+        /*
+          CAPÍTULO "ANEXOS": una foto debajo de la otra, sin cuadro delimitador.
+          Se usa tabla de una sola columna porque la fila (<tr>) es la unidad de
+          paginación fiable en Chromium: el pie nunca se separa de su imagen.
+          max-height 300px deja 2 fotos por hoja con holgura (área útil ~709px
+          en la primera hoja, ya descontado el título).
+        */
+        table.grid-anexos { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        table.grid-anexos > tbody > tr { page-break-inside: avoid; break-inside: avoid; }
+        table.grid-anexos > tbody > tr > td { width: 100%; border: none; background: transparent; padding: 0 0 20px 0; text-align: center; }
+        .anexo-caption { color: #1d429a; font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 6px; text-align: center; }
+        .anexo-img { display: block; margin: 0 auto; max-width: 100%; max-height: 300px; }
+        .anexo-fallback { max-width: 100%; height: 300px; border: 1px dashed #ccc; color: #999; font-size: 10px; text-align: center; line-height: 300px; }
     </style>
 </head>
 <body>
@@ -252,7 +327,7 @@
                         <% if (bloque.tipo === 'seccion_sector') { %>
                             <table class="grid-2">
                                 <tbody>
-                                    <tr>
+                                    <tr class="row-flow">
                                         <td>
                                             <div class="card-block">
                                                 <div class="corp-title"><span class="corp-bullet"></span>Sector</div>
@@ -264,15 +339,17 @@
                                                 </table>
 
                                                 <div class="corp-subtitle" style="margin-top: 10px;">Impacto ambiental negativo</div>
-                                                <div style="margin-bottom: 8px; font-size: 11px; color:#2d56a0; line-height: 1.6;">
-                                                    <span><%- datos.Aire ? '&#9679;' : '&#9675;' %></span> <span style="color:#333;">Aire</span> &nbsp;
-                                                    <span><%- datos.AguasServidas ? '&#9679;' : '&#9675;' %></span> <span style="color:#333;">Aguas Servidas</span> &nbsp;
-                                                    <span><%- datos.Basura ? '&#9679;' : '&#9675;' %></span> <span style="color:#333;">Basura</span> &nbsp;
-                                                    <span><%- datos.Inseguridad ? '&#9679;' : '&#9675;' %></span> <span style="color:#333;">Inseguridad</span> &nbsp;
-                                                    <span><%- datos.Ruido ? '&#9679;' : '&#9675;' %></span> <span style="color:#333;">Ruido</span>
-                                                </div>
-                                                <div class="corp-subtitle">Observaciones</div>
-                                                <p class="corp-text"><%= datos.SectorObservaciones || 'No se evidencia ningún impacto ambiental negativo, excepto por la polución vehicular.' %></p>
+                                                <%- renderChecks([
+                                                    { label: 'Aire', on: datos.Aire },
+                                                    { label: 'Aguas Servidas', on: datos.AguasServidas },
+                                                    { label: 'Basura', on: datos.Basura },
+                                                    { label: 'Inseguridad', on: datos.Inseguridad },
+                                                    { label: 'Ruido', on: datos.Ruido }
+                                                ], 2) %>
+                                                <% if (datos.SectorObservaciones) { %>
+                                                    <div class="corp-subtitle">Observaciones</div>
+                                                    <p class="corp-text"><%= datos.SectorObservaciones %></p>
+                                                <% } %>
                                             </div>
                                         </td>
                                         <td>
@@ -305,12 +382,14 @@
                                                     <tr><td style="color:#2d56a0;">Irregularidad planta</td><td><%= datos.IrregularidadPlanta || '' %></td></tr>
                                                     <tr><td style="color:#2d56a0;">Irregularidad altura</td><td><%= datos.IrregularidadAltura || '' %></td></tr>
                                                 </table>
-                                                <div class="corp-subtitle">Comentarios de la estructura</div>
-                                                <p class="corp-text"><%= datos.ComentariosDeLaEstructura || 'No se evidencia ninguna clase de construcción sobre el lote objeto de avalúo.' %></p>
+                                                <% if (datos.ComentariosDeLaEstructura) { %>
+                                                    <div class="corp-subtitle">Comentarios de la estructura</div>
+                                                    <p class="corp-text"><%= datos.ComentariosDeLaEstructura %></p>
+                                                <% } %>
                                             </div>
                                         </td>
                                     </tr>
-                                    <tr>
+                                    <tr class="row-flow">
                                         <td>
                                             <div class="card-block">
                                                 <div class="corp-title"><span class="corp-bullet"></span>Equipamiento</div>
@@ -341,18 +420,18 @@
                                                 </table>
 
                                                 <div class="corp-subtitle">Amoblamiento urbano</div>
-                                                <div style="margin-bottom: 8px; font-size: 11px; color:#2d56a0; line-height: 1.6;">
-                                                    <span><%- datos.Alamedas ? '&#9679;' : '&#9675;' %></span> <span style="color:#333;">Alamedas</span> &nbsp;
-                                                    <span><%- datos.Alumbrado ? '&#9679;' : '&#9675;' %></span> <span style="color:#333;">Alumbrado</span> &nbsp;
-                                                    <span><%- datos.Arborizacion ? '&#9679;' : '&#9675;' %></span> <span style="color:#333;">Arborización</span> &nbsp;
-                                                    <span><%- datos.Ciclorutas ? '&#9679;' : '&#9675;' %></span> <span style="color:#333;">Ciclorutas</span><br/>
-                                                    <span><%- datos.Paradero ? '&#9679;' : '&#9675;' %></span> <span style="color:#333;">Paradero</span> &nbsp;
-                                                    <span><%- datos.Parques ? '&#9679;' : '&#9675;' %></span> <span style="color:#333;">Parques</span> &nbsp;
-                                                    <span><%- datos.ZonasVerdes ? '&#9679;' : '&#9675;' %></span> <span style="color:#333;">Zonas verdes</span>
-                                                </div>
+                                                <%- renderChecks([
+                                                    { label: 'Alamedas', on: datos.Alamedas },
+                                                    { label: 'Alumbrado', on: datos.Alumbrado },
+                                                    { label: 'Arborización', on: datos.Arborizacion },
+                                                    { label: 'Ciclorutas', on: datos.Ciclorutas },
+                                                    { label: 'Paradero', on: datos.Paradero },
+                                                    { label: 'Parques', on: datos.Parques },
+                                                    { label: 'Zonas verdes', on: datos.ZonasVerdes }
+                                                ], 2) %>
 
                                                 <div class="corp-subtitle">Perspectivas de valorización</div>
-                                                <p class="corp-text"><%= datos.PerspectivasDeValorizacion || 'De acuerdo con las condiciones del sector y a la dinámica del mercado, se consideran perspectivas de valoración altas.' %></p>
+                                                <p class="corp-text"><%= datos.PerspectivasDeValorizacion || '' %></p>
                                             </div>
                                         </td>
                                     </tr>
@@ -382,17 +461,17 @@
                                         </td>
                                         <td>
                                             <div class="corp-title"><span class="corp-bullet"></span>Descripción General</div>
-                                            <p class="corp-text" style="margin-bottom: 15px;"><%= datos.DescripcionGeneral || 'El predio valorado en el siguiente informe es un lote de terreno ubicado en la entrada sur del municipio' %></p>
+                                            <p class="corp-text" style="margin-bottom: 15px;"><%= datos.DescripcionGeneral || '' %></p>
                                         </td>
                                     </tr>
-                                    <tr>
+                                    <tr class="row-flow">
                                         <td>
                                             <div class="card-block">
                                                 <div class="corp-title"><span class="corp-bullet"></span>Información de Áreas y Normatividad</div>
 
                                                 <div class="corp-subtitle" style="margin-top: 0; margin-bottom: 8px;">Información del área</div>
                                                 <div class="corp-badge">ÁREA LOTE</div>
-                                                <div style="display:inline-block; margin-left: 15px; color:#333; font-weight:bold; font-size:11px;"><%= datos.AreaLote || '0' %> M²</div>
+                                                <div style="display:inline-block; margin-left: 15px; color:#333; font-weight:bold; font-size:11px;"><%= areaM2(datos.AreaLote) %></div>
                                                 <table class="zebra-table">
                                                     <tr><td class="zebra-label">Forma</td><td class="zebra-value"><%= datos.Forma || '' %></td></tr>
                                                     <tr><td class="zebra-label">Topografía</td><td class="zebra-value"><%= datos.Topografia || '' %></td></tr>
@@ -414,17 +493,19 @@
                                             <div class="card-block">
                                                 <div class="corp-subtitle" style="margin-top: 0; margin-bottom: 8px;">Áreas construidas</div>
                                                 <div class="corp-badge">ÁREA VALORADA</div>
-                                                <div style="display:inline-block; margin-left: 15px; color:#333; font-weight:bold; font-size:11px;"><%= datos.AreaValorada || '0' %> M²</div>
+                                                <div style="display:inline-block; margin-left: 15px; color:#333; font-weight:bold; font-size:11px;"><%= areaM2(datos.AreaValorada) %></div>
                                                 <table class="zebra-table">
-                                                    <tr><td class="zebra-label">Área medida en la inspección</td><td class="zebra-value"><%= datos.AreaMedidaEnLaInspeccion || '0' %> M²</td></tr>
-                                                    <tr><td class="zebra-label">Área registrada en título</td><td class="zebra-value"><%= datos.AreaRegistradaEnTitulo || '0' %> M²</td></tr>
-                                                    <tr><td class="zebra-label">Área susceptible de legalización</td><td class="zebra-value"><%= datos.AreaSusceptibleDeLegalizacion || '0' %> M²</td></tr>
-                                                    <tr><td class="zebra-label">Área catastral</td><td class="zebra-value"><%= datos.AreaCatastral || '0' %> M²</td></tr>
+                                                    <tr><td class="zebra-label">Área medida en la inspección</td><td class="zebra-value"><%= areaM2(datos.AreaMedidaEnLaInspeccion) %></td></tr>
+                                                    <tr><td class="zebra-label">Área registrada en título</td><td class="zebra-value"><%= areaM2(datos.AreaRegistradaEnTitulo) %></td></tr>
+                                                    <tr><td class="zebra-label">Área susceptible de legalización</td><td class="zebra-value"><%= areaM2(datos.AreaSusceptibleDeLegalizacion) %></td></tr>
+                                                    <tr><td class="zebra-label">Área catastral</td><td class="zebra-value"><%= areaM2(datos.AreaCatastral) %></td></tr>
                                                     <tr><td class="zebra-label">Área licencia de construcción</td><td class="zebra-value"><%= datos.AreaLicenciaDeConstruccion || '' %></td></tr>
                                                 </table>
 
-                                                <div class="corp-subtitle">Observaciones</div>
-                                                <p class="corp-text" style="color:#555;"><%= datos.AreaValoradaObservaciones || 'Nota: se toma la decisión de liquidar lo máximo permitido por la excelente y estratégica ubicación del predio objeto del encargo valuatorio.' %></p>
+                                                <% if (datos.AreaValoradaObservaciones) { %>
+                                                    <div class="corp-subtitle">Observaciones</div>
+                                                    <p class="corp-text" style="color:#555;"><%= datos.AreaValoradaObservaciones %></p>
+                                                <% } %>
                                             </div>
                                         </td>
                                     </tr>
@@ -443,17 +524,23 @@
                                                     </tr>
                                                 </table>
 
-                                                <div class="corp-subtitle">Comportamiento oferta y demanda</div>
-                                                <p class="corp-text"><%= datos.ComportamientoOfertayDemanda || 'Del análisis del segmento del mercado relativo a los inmuebles comparables con el que se valora, se deduce que la oferta en la zona es baja por encontrarse la mayoría de los lotes y predios adjudicados, contraria a la demanda alta.' %></p>
+                                                <% if (datos.ComportamientoOfertayDemanda) { %>
+                                                    <div class="corp-subtitle">Comportamiento oferta y demanda</div>
+                                                    <p class="corp-text"><%= datos.ComportamientoOfertayDemanda %></p>
+                                                <% } %>
                                             </div>
                                         </td>
                                         <td>
                                             <div class="card-block">
-                                                <div class="corp-subtitle" style="margin-top: 0;">Descripción sector, actividad inmobiliaria, vías importantes</div>
-                                                <p class="corp-text"><%= datos.DescripcionSectorInmobiliario || '' %></p>
+                                                <% if (datos.DescripcionSectorInmobiliario) { %>
+                                                    <div class="corp-subtitle" style="margin-top: 0;">Descripción sector, actividad inmobiliaria, vías importantes</div>
+                                                    <p class="corp-text"><%= datos.DescripcionSectorInmobiliario %></p>
+                                                <% } %>
 
-                                                <div class="corp-subtitle">Actualidad edificadora</div>
-                                                <p class="corp-text"><%= datos.ActualidadEdificadora || 'En el sector donde se localiza el inmueble objeto del Avalúo, se evidencia una actividad edificadora creciente.' %></p>
+                                                <% if (datos.ActualidadEdificadora) { %>
+                                                    <div class="corp-subtitle">Actualidad edificadora</div>
+                                                    <p class="corp-text"><%= datos.ActualidadEdificadora %></p>
+                                                <% } %>
                                             </div>
                                         </td>
                                     </tr>
@@ -464,7 +551,7 @@
                         <% if (bloque.tipo === 'seccion_predio_dotacion') { %>
                             <table class="grid-2">
                                 <tbody>
-                                    <tr>
+                                    <tr class="row-flow">
                                         <td>
                                             <div class="card-block">
                                                 <div class="corp-title"><span class="corp-bullet"></span>Predio</div>
@@ -547,7 +634,7 @@
                                             </div>
                                         </td>
                                     </tr>
-                                    <tr>
+                                    <tr class="row-flow">
                                         <td class="full" colspan="2">
                                             <div class="card-block">
                                                 <div class="corp-title"><span class="corp-bullet"></span>Dotación Comunal</div>
@@ -556,23 +643,21 @@
                                                     <tr><td style="color:#2d56a0;">Valor admón m²</td><td><%= datos.DCValorAdmonM2 || '' %></td><td style="color:#2d56a0;">Vigilancia Priv.</td><td><%= datos.DCVigilanciaPrivada || '' %></td></tr>
                                                     <tr><td style="color:#2d56a0;">Ascensores</td><td colspan="3"><%= datos.DCAscensores || '' %></td></tr>
                                                 </table>
-                                                <div style="line-height:1.9; margin-top:5px;">
-                                                    <%
-                                                    const dcLabels = ['A.A. Central', 'BBQ', 'Bicicletero', 'Bomba eyect', 'Calefacción', 'Cancha multiuso', 'Cancha Squash', 'CCTV', 'Citofonía', 'Club house', 'Equipo de presión', 'Garajes residentes', 'Garajes visitantes', 'Gimnasio', 'Golfito', 'Guardería', 'Juegos niños', 'Piscina', 'Planta eléctrica', 'Portería', 'Salón comunal', 'Salón de juegos', 'Sauna', 'Shut basuras', 'Tanque de agua', 'Teatrino', 'Terraza comunal', 'Turco', 'Vigilancia 24 horas', 'Zonas verdes', 'Otros'];
-                                                    dcLabels.forEach(lbl => {
-                                                        let field = 'DC' + lbl.replace(/[^a-zA-Z]/g, '');
-                                                        if (lbl === 'Bomba eyect') field = 'DCBombaEyect';
-                                                        if (lbl === 'Equipo de presión') field = 'DCEquipoPresion';
-                                                        if (lbl === 'Juegos niños') field = 'DCJuegosNinos';
-                                                        if (lbl === 'Shut basuras') field = 'DCShutBasuras';
-                                                        if (lbl === 'Zonas verdes') field = 'DCZonaVerde';
-                                                        if (lbl === 'Vigilancia 24 horas') field = 'DCVigilancia24Horas';
-                                                        if (lbl === 'A.A. Central') field = 'DCAACentral';
-                                                        let check = datos[field] ? 'background-color:#2d56a0;' : 'background-color:transparent;';
-                                                    %>
-                                                        <span style="display:inline-block; white-space:nowrap; margin-right:14px;"><span style="display:inline-block; width:10px; height:10px; border-radius:50%; border:1px solid #2d56a0; margin-right:4px; vertical-align:middle; <%= check %>"></span><span style="vertical-align:middle; color:#2d56a0; font-size:11px; font-weight:bold;"><%= lbl %></span></span>
-                                                    <% }); %>
-                                                </div>
+                                                <%
+                                                const dcLabels = ['A.A. Central', 'BBQ', 'Bicicletero', 'Bomba eyect', 'Calefacción', 'Cancha multiuso', 'Cancha Squash', 'CCTV', 'Citofonía', 'Club house', 'Equipo de presión', 'Garajes residentes', 'Garajes visitantes', 'Gimnasio', 'Golfito', 'Guardería', 'Juegos niños', 'Piscina', 'Planta eléctrica', 'Portería', 'Salón comunal', 'Salón de juegos', 'Sauna', 'Shut basuras', 'Tanque de agua', 'Teatrino', 'Terraza comunal', 'Turco', 'Vigilancia 24 horas', 'Zonas verdes', 'Otros'];
+                                                const dcItems = dcLabels.map(lbl => {
+                                                    let field = 'DC' + lbl.replace(/[^a-zA-Z]/g, '');
+                                                    if (lbl === 'Bomba eyect') field = 'DCBombaEyect';
+                                                    if (lbl === 'Equipo de presión') field = 'DCEquipoPresion';
+                                                    if (lbl === 'Juegos niños') field = 'DCJuegosNinos';
+                                                    if (lbl === 'Shut basuras') field = 'DCShutBasuras';
+                                                    if (lbl === 'Zonas verdes') field = 'DCZonaVerde';
+                                                    if (lbl === 'Vigilancia 24 horas') field = 'DCVigilancia24Horas';
+                                                    if (lbl === 'A.A. Central') field = 'DCAACentral';
+                                                    return { label: lbl, on: datos[field] };
+                                                });
+                                                %>
+                                                <%- renderChecks(dcItems, 4) %>
                                             </div>
                                         </td>
                                     </tr>
@@ -581,42 +666,38 @@
                         <% } %>
 
                         <% if (bloque.tipo === 'seccion_textos_legales') { %>
-                            <div style="font-size: 11px; text-align: justify; margin-bottom: 15px; line-height: 1.45;">
+                            <div style="page-break-before: always;"></div>
+                            <div class="textos-legales">
                                 <div class="corp-title"><span class="corp-bullet"></span>Definición de Términos y Conceptos</div>
-                                <p><b>AVALÚO:</b> Es el estudio o proceso mediante el cual se estima y documenta el valor de un bien raíz o bien inmueble, de acuerdo a la apreciación personal expresada por un profesional...</p>
-                                <p><b>VALOR COMERCIAL:</b> Es la cantidad estimada de dinero circulante a cambio de la cual el vendedor y el comprador del bien que se valúa...</p>
+                                <p><b>AVALÚO:</b> Es el estudio o proceso mediante el cual se estima y documenta el valor de un bien raíz o bien inmueble, de acuerdo a la apreciación personal expresada por un profesional que cuenta con los conocimientos técnicos, aplique normas y procedimientos generalmente aceptados en esta especialidad y cuya ética y desempeño avalen la confiabilidad de su valuación.</p>
+                                <p><b>VALOR COMERCIAL:</b> Es la cantidad estimada de dinero circulante a cambio de la cual el vendedor y el comprador del bien que se valúa, estando bien informados y sin ningún tipo de presión o apremio, estarían dispuestos a aceptar en efectivo por su enajenación con una promoción suficiente y adecuada a su mercado.</p>
 
                                 <div class="corp-title" style="margin-top: 20px;"><span class="corp-bullet"></span>Condicionantes y Salvedades al Avalúo</div>
-                                <p>Conforme al artículo 18 de la Resolución 620, del 23/09/2008, del IGAC; por la cual se establece la metodología...</p>
-                                <p>La información y antecedentes de propiedad asentados en el presente Avalúo es la contenida en la documentación oficial...</p>
+                                <p>Conforme al artículo 18 de la <b>Resolución 620</b>, del 23/09/2008, del IGAC; por la cual se establece la metodología para la realización de los avalúos ordenados por la Ley 388 de 1.997; en lo referente a los avalúos de inmuebles sometidos a régimen de propiedad horizontal; el presente avalúo se practicará únicamente para las áreas privadas que legalmente existan. Conforme a lo determinado en el <b>Art. 14 del Dcto. 1420 de 1998</b>; la compañía valuadora así como el valuador no serán responsables de la veracidad de la información recibida del solicitante, con excepción de la concordancia de la reglamentación urbanística que afecte o haya afectado al inmueble objeto del avalúo al momento de la realización de este.</p>
+                                <p>La información y antecedentes de propiedad asentados en el presente Avalúo es la contenida en la documentación oficial proporcionada por el solicitante del propio Avalúo y/o propietario del bien a valuar, la cual asumimos como correcta. Entre ella, podemos mencionar a la escritura de propiedad o documento que lo identifica legalmente, los planos arquitectónicos y el registro catastral (boleta predial).</p>
+                                <p><b>Los valores</b> comerciales asignados a los inmuebles, tienen que ver directamente con el área determinada en los documentos públicos suministrados por el interesado y áreas susceptibles de legalizar.</p>
+                                <p>El presente avalúo no tiene en cuenta para la determinación del valor aspectos de orden jurídico de ninguna índole.</p>
+                                <p>Se entienden incluidas dentro del valor del inmueble, como es técnica valuatoria común para inmuebles sometidos al régimen de propiedad horizontal, el valor proporcional de los bienes comunes.</p>
+                                <p>En cuanto a la incidencia que sobre el valor pueda tener la existencia de contratos de arrendamiento o de otro género, asumimos que el titular del derecho de propiedad tiene el uso y goce de todas las facultades que se derivan de este.</p>
+                                <p><b>La presente tasación</b> no constituye un dictamen estructural, de cimentación o de cualquier otra rama de la ingeniería civil o la arquitectura que no sea objeto de la valuación, por lo tanto no puede ser utilizado para fines relacionados con esas ramas ni se asume responsabilidad por vicios ocultos u otras características del inmueble que no puedan ser apreciadas en una visita normal de inspección física para efectos de tasación. Incluso cuando se aprecien algunas características que puedan constituir anomalías con respecto al estado de conservación normal -según la vida útil consumida- de un inmueble o a su estructura, el valuador no asume mayor responsabilidad que así indicarlo cuando son detectadas, ya que aunque se presenten estados de conservación malos o ruinosos, es obligación del perito realizar la tasación según los criterios y normas vigentes y aplicables según el propósito del mismo.</p>
+                                <p><b>Vigencia del avalúo:</b> De acuerdo a lo establecido por los decretos 1420/1998 y 422/2000, expedidos por el Ministerio de Hacienda y Crédito Público y ministerio de Desarrollo Económico, el presente avalúo comercial tiene una vigencia de un año, contado desde la fecha de expedición, siempre y cuando las condiciones físicas y normativas del inmueble valuado, no sufran cambios significativos, así como tampoco se presenten variaciones representativas del mercado inmobiliario comparable.</p>
+                                <p><b>El profesional que firma</b> declara que no tiene hoy, ni espera tener en el futuro, interés en la propiedad valorada; ni participación en los usos que se hagan del avalúo, ni con las personas que participen en la operación. Ha inspeccionado el inmueble y la información es la observada; los inconvenientes y limitaciones que pueda tener el bien y su vecindario, están mencionados. Además, se mantendrá un nivel de confidencialidad, acorde a las exigencias del solicitante. No es responsabilidad del valuador, el uso de este informe, para un fin distinto al que fue solicitado.</p>
+                                <p><b>El presente Avalúo es de USO exclusivo del(os) solicitante(s)</b> para el destino o propósito expresado en el mismo, por lo que no podrá ser utilizado para fines distintos.</p>
 
                                 <div class="corp-title" style="margin-top: 20px;"><span class="corp-bullet"></span>Metodología Valuatoria</div>
-                                <p>Método Físico, Directo o enfoque de COSTOS, es el proceso técnico necesario para estimar el costo de reproducción o de reemplazo...</p>
-                                <p>Método Comparativo o de MERCADO, es el desarrollo analítico a través del cual se obtiene un valor que resulta de comparar el bien que se valúa...</p>
+                                <p><b>Método Físico, Directo o enfoque de COSTOS</b>, es el proceso técnico necesario para estimar el costo de reproducción o de reemplazo de un bien similar al que se valúa, afectado por la Depreciación atribuible a los factores de Edad, Estado de Conservación y Obsolescencia observados.</p>
+                                <p><b>Método de Capitalización de Rentas o enfoque de INGRESOS</b>, es el procedimiento mediante el cual se estima el valor presente o capitalizado de los ingresos netos por rentas que produce o es susceptible de producir un inmueble a la fecha del avalúo durante un largo plazo (mayor a 50 años) de modo constante (a perpetuidad), descontados por una determinada tasa de capitalización (real) aplicable al caso en estudio.</p>
+                                <p><b>Método Comparativo o de MERCADO</b>, es el desarrollo analítico a través del cual se obtiene un valor que resulta de comparar el bien que se valúa (sujeto) con el precio ofertado ó de venta de cuando menos tres bienes similares (comparables), ajustados por sus principales factores diferenciales (homologación).</p>
                             </div>
                         <% } %>
 
-                        <% if (bloque.tipo === 'seccion_usos_propuestos') { %>
-                            <div style="margin-bottom: 15px;" class="card-block">
-                                <div class="corp-title"><span class="corp-bullet"></span>Usos Propuestos</div>
-                                <table class="comparables-table">
-                                    <tr>
-                                        <th>Globo de Terreno</th>
-                                        <th>Uso Principal</th>
-                                        <th>Uso Complementario</th>
-                                        <th>Uso Compatible</th>
-                                        <th>Normas Particulares</th>
-                                    </tr>
-                                    <tr>
-                                        <td style="text-align: center; font-weight: bold; color: #2d56a0;">M 01 A</td>
-                                        <td><%= datos.UsoPrincipal || 'Dotacional Servicios Básicos' %></td>
-                                        <td>Comercial C3, Actividades relacionadas...</td>
-                                        <td>Estaciones de Servicio...</td>
-                                        <td>Uso Principal de cobertura regional</td>
-                                    </tr>
-                                </table>
-                            </div>
-                        <% } %>
+                        <%
+                          /* "Usos Propuestos" se eliminó: su contenido ("M 01 A",
+                             "Comercial C3...", "Estaciones de Servicio...") era data
+                             fija del avalúo de INFITULUA y se imprimía igual en todos
+                             los informes. Si algún día se necesita, debe alimentarse
+                             de campos del formulario, no de texto incrustado. */
+                        %>
 
                         <%
                           /* El croquis solo se imprime si de verdad hay imagen. Antes se
@@ -654,61 +735,97 @@
                                 <tr class="row-sujeto"><td colspan="2" style="text-align:center; padding:5px;">SUJETO</td><td style="text-align:center;"><%= datos.Edad || '0' %></td><td style="text-align:right;"><%= datos.AreaLote || '0,00' %></td><td style="text-align:right;"><%= datos.AreaValorada || '0,00' %></td><td></td><td></td><td></td></tr>
                             </table>
 
-                            <div class="corp-title" style="margin-top: 20px;"><span class="corp-bullet"></span>Diagnostico valores de referencia</div>
-                            <p class="corp-text"><%= datos.DVRDiagnostico || 'Se realizó la búsqueda de inmuebles con características similares al inmueble objeto del avalúo...' %></p>
+                            <% if (datos.DVRDiagnostico) { %>
+                                <div class="corp-title" style="margin-top: 20px;"><span class="corp-bullet"></span>Diagnostico valores de referencia</div>
+                                <p class="corp-text"><%= datos.DVRDiagnostico %></p>
+                            <% } %>
 
-                            <div class="corp-subtitle" style="margin-top:20px; margin-bottom: 5px;">Cuadro de valoración terreno</div>
+                            <% if (valoracion.terreno > 0 || Number(datos.CVTArea) > 0) { %>
+                            <div class="corp-subtitle" style="margin-top:10px; margin-bottom: 5px;">Cuadro de valoración terreno</div>
                             <table class="comparables-table" style="text-align: center;">
                                 <tr><th>TERRENO</th><th>DESCRIPCIÓN</th><th>ÁREA</th><th>UNIDAD DE MEDIDA</th><th>VALOR M²</th><th>PRECIO TOTAL</th><th>PORCENTAJE</th></tr>
                                 <tr>
                                     <td>LOTE</td>
                                     <td><%= datos.CVTDescripcion || '' %></td>
-                                    <td><%= datos.CVTArea || '0' %></td>
+                                    <td><%= fmtNumero(datos.CVTArea) %></td>
                                     <td><%= datos.CVTUniadDeMedida || '' %></td>
-                                    <td><%= datos.CVTValorUnitario || '0' %></td>
-                                    <td><%= datos.CVTValor || '0' %></td>
-                                    <td><%= datos.CVTPorcentaje || '' %></td>
+                                    <td><%= fmtMoneda(datos.CVTValorUnitario) %></td>
+                                    <td><%= fmtMoneda(valoracion.terreno) %></td>
+                                    <td><%= fmtPorcentaje(valoracion.pctTerreno) %></td>
                                 </tr>
-                                <tr class="row-total"><td colspan="2" class="label-total">SUBTOTAL TERRENO</td><td><%= datos.CVTArea || '0' %></td><td colspan="2"></td><td><%= datos.CVTValor || '0' %></td><td><%= datos.CVTPorcentaje || '' %></td></tr>
+                                <tr class="row-total"><td colspan="2" class="label-total">SUBTOTAL TERRENO</td><td><%= fmtNumero(datos.CVTArea) %></td><td colspan="2"></td><td><%= fmtMoneda(valoracion.terreno) %></td><td><%= fmtPorcentaje(valoracion.pctTerreno) %></td></tr>
                             </table>
+                            <% } %>
 
+                            <% if (valoracion.edificaciones > 0 || Number(datos.CVEArea) > 0) { %>
                             <div class="corp-subtitle" style="margin-top: 20px; margin-bottom: 5px;">Cuadro de valoración edificaciones</div>
                             <table class="comparables-table" style="text-align: center;">
                                 <tr><th>EDIFICACIONES</th><th>DESCRIPCIÓN</th><th>ÁREA</th><th>UNIDAD DE MEDIDA</th><th>VALOR M²</th><th>PRECIO TOTAL</th><th>PORCENTAJE</th></tr>
                                 <tr>
                                     <td>CONSTRUCCIÓN</td>
                                     <td><%= datos.CVEDescripcion || '' %></td>
-                                    <td><%= datos.CVEArea || '0' %></td>
+                                    <td><%= fmtNumero(datos.CVEArea) %></td>
                                     <td><%= datos.CVEUniadDeMedida || '' %></td>
-                                    <td><%= datos.CVEValorUnitario || '0' %></td>
-                                    <td><%= (Number(datos.CVEArea || 0) * Number(datos.CVEValorUnitario || 0)).toLocaleString('es-CO') %></td>
-                                    <td><%= datos.CVEPorcentaje || '' %></td>
+                                    <td><%= fmtMoneda(datos.CVEValorUnitario) %></td>
+                                    <td><%= fmtMoneda(valoracion.edificaciones) %></td>
+                                    <td><%= fmtPorcentaje(valoracion.pctEdificaciones) %></td>
                                 </tr>
-                                <tr class="row-total"><td colspan="2" class="label-total">SUBTOTAL EDIFICACIONES</td><td><%= datos.CVEArea || '0' %></td><td colspan="2"></td><td><%= (Number(datos.CVEArea || 0) * Number(datos.CVEValorUnitario || 0)).toLocaleString('es-CO') %></td><td><%= datos.CVEPorcentaje || '' %></td></tr>
+                                <tr class="row-total"><td colspan="2" class="label-total">SUBTOTAL EDIFICACIONES</td><td><%= fmtNumero(datos.CVEArea) %></td><td colspan="2"></td><td><%= fmtMoneda(valoracion.edificaciones) %></td><td><%= fmtPorcentaje(valoracion.pctEdificaciones) %></td></tr>
                             </table>
+                            <% } %>
 
-                            <!-- CAJA DE FIRMA AL FINAL DEL DOCUMENTO -->
-                            <div style="margin-top: 40px; border-top: 1px solid #ddd; padding-top: 15px;" class="card-block">
-                                <div style="color: #1d429a; font-size: 14px; font-weight: bold; margin-bottom: 4px;">Diego Antonio Candamil Rengifo</div>
-                                <table style="width: 100%; border:none; margin-bottom: 12px;">
-                                    <tr>
-                                        <td style="width: 60%; vertical-align: top; padding: 0;">
-                                            <div style="font-size: 11px; color: #333; margin-bottom: 6px;">Valuador</div>
-                                            <div style="font-size: 10px; color: #666; line-height: 1.3;">
-                                                R.A.A. AVAL-94355782<br/>
-                                                Inmuebles Urbanos-Rurales
-                                            </div>
-                                        </td>
-                                        <td style="width: 40%; vertical-align: middle; text-align: right; padding: 0;">
-                                            <% if (b64Firma) { %>
-                                                <img src="<%= b64Firma %>" style="max-width:160px; max-height: 60px; object-fit: contain;" />
-                                            <% } else { %>
-                                                <div style="height:40px; color:#ccc; font-style:italic; font-size:10px; text-align:right; line-height:40px;">(Firma pendiente)</div>
-                                            <% } %>
-                                        </td>
-                                    </tr>
+                            <%
+                              /* RESULTADO DE VALORES: el informe no mostraba en ninguna
+                                 parte el valor comercial final; había que sumar los dos
+                                 subtotales a mano. */
+                            %>
+                            <% if (valoracion.total > 0) { %>
+                                <div class="corp-title" style="margin-top: 14px; margin-bottom: 6px;"><span class="corp-bullet"></span>Resultado de Valores</div>
+                                <table class="resultado-valores">
+                                    <tbody>
+                                        <% if (valoracion.terreno > 0) { %>
+                                            <tr>
+                                                <td class="rv-label">Valor terreno</td>
+                                                <td class="rv-valor"><%= fmtMoneda(valoracion.terreno) %></td>
+                                                <td class="rv-pct"><%= fmtPorcentaje(valoracion.pctTerreno) %></td>
+                                            </tr>
+                                        <% } %>
+                                        <% if (valoracion.edificaciones > 0) { %>
+                                            <tr>
+                                                <td class="rv-label">Valor construcción</td>
+                                                <td class="rv-valor"><%= fmtMoneda(valoracion.edificaciones) %></td>
+                                                <td class="rv-pct"><%= fmtPorcentaje(valoracion.pctEdificaciones) %></td>
+                                            </tr>
+                                        <% } %>
+                                        <tr class="rv-total">
+                                            <td class="rv-label">VALOR COMERCIAL TOTAL</td>
+                                            <td class="rv-valor" colspan="2"><%= fmtMoneda(valoracion.total) %></td>
+                                        </tr>
+                                    </tbody>
                                 </table>
+                            <% } %>
+
+                            <!--
+                              CAJA DE FIRMA AL FINAL DE LA VALORACIÓN.
+                              La firma va DEBAJO de los datos del valuador (antes iba en
+                              una celda al 40% alineada a la derecha, muy separada).
+                              El bloque es indivisible y cierra la hoja: lo que siga
+                              arranca en página nueva.
+                            -->
+                            <div class="firma-cierre">
+                                <div class="firma-nombre">Diego Antonio Candamil Rengifo</div>
+                                <div class="firma-cargo">Valuador</div>
+                                <div class="firma-registro">
+                                    R.A.A. AVAL-94355782<br/>
+                                    Inmuebles Urbanos-Rurales
+                                </div>
+                                <% if (b64Firma) { %>
+                                    <img src="<%= b64Firma %>" class="firma-img" />
+                                <% } else { %>
+                                    <div class="firma-pendiente">(Firma pendiente)</div>
+                                <% } %>
                             </div>
+                            <div style="page-break-after: always;"></div>
                         <% } %>
 
                         <%

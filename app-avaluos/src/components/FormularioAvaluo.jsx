@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react'
 
-const Field = ({ label, name, type = "text", col = "col-md-3", options = null, formData = {}, onChange }) => {
+// Topes de los cuadros de valoración. Sin ellos se alcanzó a guardar un área
+// de 99.999.999.999.999,99 m², que salía impresa en el informe firmado.
+const LIMITE_AREA = 10000000;            // 10 millones de m² (1.000 hectáreas)
+const LIMITE_VALOR_UNITARIO = 1000000000; // mil millones por m²
+
+const Field = ({ label, name, type = "text", col = "col-md-3", options = null, formData = {}, onChange, min, max, step }) => {
   const valorSeguro = formData[name] != null ? String(formData[name]) : '';
   return (
     <div className={col}>
@@ -16,7 +21,7 @@ const Field = ({ label, name, type = "text", col = "col-md-3", options = null, f
       ) : type === "textarea" ? (
         <textarea name={name} value={valorSeguro} onChange={onChange} className="form-control form-control-sm border-primary shadow-sm" rows="2"></textarea>
       ) : (
-        <input type={type} name={name} value={valorSeguro} onChange={onChange} className="form-control form-control-sm border-primary shadow-sm" />
+        <input type={type} name={name} value={valorSeguro} onChange={onChange} min={min} max={max} step={step} className="form-control form-control-sm border-primary shadow-sm" />
       )}
     </div>
   );
@@ -137,12 +142,50 @@ export default function FormularioAvaluo({ setVistaActiva, idEdicion }) {
   };
   const eliminarImagen = (idx) => setImagenesPreview(prev => prev.filter((_, i) => i !== idx));
 
+  // El orden de este arreglo es el orden en que salen los anexos en el PDF:
+  // metaAnexos se construye a partir de él, y el backend lo guarda tal cual.
+  const moverImagen = (idx, desplazamiento) => {
+    setImagenesPreview(prev => {
+      const destino = idx + desplazamiento;
+      if (destino < 0 || destino >= prev.length) return prev;
+      const n = [...prev];
+      [n[idx], n[destino]] = [n[destino], n[idx]];
+      return n;
+    });
+  };
+
   // LÓGICA INTELIGENTE DE GUARDADO DE IMÁGENES
   const confirmarGuardadoFinal = async () => {
+    // Los cuadros de valoración alimentan el valor comercial del informe
+    // firmado: una cifra imposible no debe poder guardarse.
+    const excesos = [];
+    const revisar = (campo, etiqueta, tope) => {
+      const n = Number(formData[campo]);
+      if (isFinite(n) && n > tope) excesos.push(`${etiqueta}: ${n.toLocaleString('es-CO')}`);
+    };
+    revisar('CVTArea', 'Área Terreno', LIMITE_AREA);
+    revisar('CVEArea', 'Área Constr.', LIMITE_AREA);
+    revisar('CVTValorUnitario', 'V. Unitario Terreno', LIMITE_VALOR_UNITARIO);
+    revisar('CVEValorUnitario', 'V. Unit. Constr.', LIMITE_VALOR_UNITARIO);
+    if (excesos.length > 0) {
+      alert(
+        "Revisa los cuadros de valoración, hay valores fuera de rango:\n\n" +
+        excesos.join('\n') +
+        `\n\nMáximos permitidos: área ${LIMITE_AREA.toLocaleString('es-CO')} m², ` +
+        `valor unitario $ ${LIMITE_VALOR_UNITARIO.toLocaleString('es-CO')}.`
+      );
+      return;
+    }
+
     if (!window.confirm("¿Confirmas los datos de este avalúo?")) return;
-    
+
     const datosGuardar = { ...formData };
-    
+
+    // El total de cada cuadro se guarda calculado, para que el formulario,
+    // la base de datos y el PDF muestren siempre la misma cifra.
+    datosGuardar.CVTValor = Number(formData.CVTArea || 0) * Number(formData.CVTValorUnitario || 0);
+    datosGuardar.CVEValor = Number(formData.CVEArea || 0) * Number(formData.CVEValorUnitario || 0);
+
     // Si la imagen es vieja y no la borramos, mantenemos el texto en la DB. Si se borró, mandamos null
     if (fotoFachada && fotoFachada.isOld) datosGuardar.foto_fachada = fotoFachada.filename;
     else if (!fotoFachada) datosGuardar.foto_fachada = null;
@@ -521,9 +564,9 @@ export default function FormularioAvaluo({ setVistaActiva, idEdicion }) {
             <div className="col-12"><h6 className="section-title">■ CUADROS DE VALORACIÓN</h6></div>
             <label className="fw-bold text-muted small w-100">TERRENO:</label>
             <Field label="Descripción Terreno" name="CVTDescripcion" col="col-md-3" formData={formData} onChange={handleInputChange} />
-            <Field label="Unidad Medida" name="CVTUnidadMedida" col="col-md-2" formData={formData} onChange={handleInputChange} />
-            <Field label="Área Terreno" name="CVTArea" type="number" col="col-md-2" formData={formData} onChange={handleInputChange} />
-            <Field label="V. Unitario Terreno" name="CVTValorUnitario" type="number" col="col-md-2" formData={formData} onChange={handleInputChange} />
+            <Field label="Unidad Medida" name="CVTUniadDeMedida" col="col-md-2" formData={formData} onChange={handleInputChange} />
+            <Field label="Área Terreno" name="CVTArea" type="number" col="col-md-2" min={0} max={LIMITE_AREA} step="0.01" formData={formData} onChange={handleInputChange} />
+            <Field label="V. Unitario Terreno" name="CVTValorUnitario" type="number" col="col-md-2" min={0} max={LIMITE_VALOR_UNITARIO} step="0.01" formData={formData} onChange={handleInputChange} />
             <Field label="Porcentaje" name="CVTPorcentaje" col="col-md-1" formData={formData} onChange={handleInputChange} />
             <div className="col-md-2">
               <label className="small fw-bold text-success">Total Terreno</label>
@@ -532,9 +575,9 @@ export default function FormularioAvaluo({ setVistaActiva, idEdicion }) {
 
             <label className="fw-bold text-muted small w-100 mt-2">EDIFICACIONES:</label>
             <Field label="Desc. Edificación" name="CVEDescripcion" col="col-md-3" formData={formData} onChange={handleInputChange} />
-            <Field label="Unidad Medida" name="CVEUnidadMedida" col="col-md-2" formData={formData} onChange={handleInputChange} />
-            <Field label="Área Constr." name="CVEArea" type="number" col="col-md-2" formData={formData} onChange={handleInputChange} />
-            <Field label="V. Unit. Constr." name="CVEValorUnitario" type="number" col="col-md-2" formData={formData} onChange={handleInputChange} />
+            <Field label="Unidad Medida" name="CVEUniadDeMedida" col="col-md-2" formData={formData} onChange={handleInputChange} />
+            <Field label="Área Constr." name="CVEArea" type="number" col="col-md-2" min={0} max={LIMITE_AREA} step="0.01" formData={formData} onChange={handleInputChange} />
+            <Field label="V. Unit. Constr." name="CVEValorUnitario" type="number" col="col-md-2" min={0} max={LIMITE_VALOR_UNITARIO} step="0.01" formData={formData} onChange={handleInputChange} />
             <Field label="Porcentaje" name="CVEPorcentaje" col="col-md-1" formData={formData} onChange={handleInputChange} />
             <div className="col-md-2">
               <label className="small fw-bold text-success">Total Construcción</label>
@@ -549,19 +592,47 @@ export default function FormularioAvaluo({ setVistaActiva, idEdicion }) {
         {pasoFormulario === 4 && (
           <div className="row g-4 fade-in">
             <div className="col-12 text-center py-4">
-              <h3 className="fw-bold" style={{ color: '#1d429a' }}>Anexos Fotográficos Adicionales</h3>
+              <h3 className="fw-bold" style={{ color: '#1d429a' }}>Anexos</h3>
               <p className="text-muted small">Sube aquí las fotos del interior del inmueble (Baños, Cocina, Habitaciones).</p>
               <input type="file" className="d-none" id="upFotos" multiple accept=".jpg,.jpeg,.png" onChange={handleImageUpload} />
               <label htmlFor="upFotos" className="btn btn-primary px-5 rounded-pill fw-bold" style={{ cursor: 'pointer' }}>+ CARGAR FOTOS DE INTERIORES</label>
+              {imagenesPreview.length > 1 && (
+                <p className="text-muted small mt-3 mb-0">
+                  El número indica el orden en que saldrán en el PDF. Usa ◀ ▶ para reacomodarlas.
+                </p>
+              )}
             </div>
             <div className="d-flex flex-wrap gap-3">
               {imagenesPreview.map((img, idx) => (
                 <div key={idx} className="bg-white p-2 border rounded position-relative shadow-sm" style={{ width: '180px' }}>
-                  <button type="button" className="position-absolute top-0 end-0 btn btn-danger btn-sm rounded-circle m-1" style={{ width: '28px', height: '28px', padding: '0' }} onClick={() => eliminarImagen(idx)}>✕</button>
+                  <span
+                    className="position-absolute top-0 start-0 badge rounded-pill m-1"
+                    style={{ backgroundColor: '#1d429a', zIndex: 2 }}
+                    title="Orden en el PDF"
+                  >
+                    {idx + 1}
+                  </span>
+                  <button type="button" className="position-absolute top-0 end-0 btn btn-danger btn-sm rounded-circle m-1" style={{ width: '28px', height: '28px', padding: '0', zIndex: 2 }} onClick={() => eliminarImagen(idx)}>✕</button>
                   <img src={img.url} className="w-100 rounded mb-2" style={{ height: '120px', objectFit: 'cover' }} />
-                  <input className="form-control form-control-sm border-primary" placeholder="Título para el PDF" value={img.titulo} onChange={e => {
+                  <input className="form-control form-control-sm border-primary mb-2" placeholder="Título para el PDF" value={img.titulo} onChange={e => {
                     const n = [...imagenesPreview]; n[idx].titulo = e.target.value; setImagenesPreview(n);
                   }} />
+                  <div className="d-flex gap-1">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-secondary flex-grow-1 py-0"
+                      onClick={() => moverImagen(idx, -1)}
+                      disabled={idx === 0}
+                      title="Mover antes"
+                    >◀</button>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-secondary flex-grow-1 py-0"
+                      onClick={() => moverImagen(idx, 1)}
+                      disabled={idx === imagenesPreview.length - 1}
+                      title="Mover después"
+                    >▶</button>
+                  </div>
                 </div>
               ))}
             </div>
