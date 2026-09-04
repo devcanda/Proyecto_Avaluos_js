@@ -40,7 +40,7 @@ export default function Dashboard({ setVistaActiva, onEditar, onNuevo }) {
   const [busqueda, setBusqueda] = useState("");
   const [fechaVisitaFiltro, setFechaVisitaFiltro] = useState("");
   const [paginaActual, setPaginaActual] = useState(1);
-  const registrosPorPagina = 10;
+  const [registrosPorPagina, setRegistrosPorPagina] = useState(10);
   const [filtroKpi, setFiltroKpi] = useState(null);
 
   const [mostrarModal, setMostrarModal] = useState(false);
@@ -52,8 +52,10 @@ export default function Dashboard({ setVistaActiva, onEditar, onNuevo }) {
 
   const [generandoId, setGenerandoId] = useState(null);
   const [aviso, setAviso] = useState(null);
+  const [orden, setOrden] = useState({ clave: null, direccion: 'asc' });
 
   const hoy = new Date().toISOString().split('T')[0];
+  const fmtFecha = (f) => f ? new Date(f).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
   const cargarDatos = () => {
     fetch(`${API}/dashboard`)
@@ -102,20 +104,41 @@ export default function Dashboard({ setVistaActiva, onEditar, onNuevo }) {
 
   const avaluosFiltrados = avaluos.filter((av) => {
     const termino = busqueda.toLowerCase();
-    const coincideTexto = av.id.toString().includes(termino) || (av.solicitante && av.solicitante.toLowerCase().includes(termino)) || (av.documento && av.documento.toString().includes(termino));
+    const coincideTexto = busqueda === "" || av.id.toString().includes(termino) || (av.solicitante && av.solicitante.toLowerCase().includes(termino)) || (av.documento && av.documento.toString().includes(termino));
+    
     let coincideFecha = true;
     if (fechaVisitaFiltro && av.fecha_vis_formato) coincideFecha = av.fecha_vis_formato === fechaVisitaFiltro;
     else if (fechaVisitaFiltro && !av.fecha_vis_formato) coincideFecha = false;
+    
     let coincideKpi = true;
     if (filtroKpi === 'Pendientes') coincideKpi = av.estado === 'Activo' && !av.fecha_limite_entrega;
     else if (filtroKpi === 'Atrasados') coincideKpi = av.estado === 'Activo' && av.fecha_limite_entrega && av.fecha_limite_entrega.substring(0, 10) < hoy;
     else if (filtroKpi === 'En Proceso') coincideKpi = av.estado === 'Activo' && av.fecha_limite_entrega && av.fecha_limite_entrega.substring(0, 10) >= hoy;
+
     return coincideTexto && coincideFecha && coincideKpi;
+  });
+
+  const avaluosOrdenados = [...avaluosFiltrados].sort((a, b) => {
+    if (!orden.clave) return 0;
+    let valA = a[orden.clave] || '';
+    let valB = b[orden.clave] || '';
+    
+    if (orden.clave === 'estadoSLA') {
+      valA = obtenerEstadoSLA(a);
+      valB = obtenerEstadoSLA(b);
+    }
+    
+    if (typeof valA === 'string') valA = valA.toLowerCase();
+    if (typeof valB === 'string') valB = valB.toLowerCase();
+
+    if (valA < valB) return orden.direccion === 'asc' ? -1 : 1;
+    if (valA > valB) return orden.direccion === 'asc' ? 1 : -1;
+    return 0;
   });
 
   const indiceUltimo = paginaActual * registrosPorPagina;
   const indicePrimer = indiceUltimo - registrosPorPagina;
-  const registrosPaginados = avaluosFiltrados.slice(indicePrimer, indiceUltimo);
+  const registrosPaginados = avaluosOrdenados.slice(indicePrimer, indiceUltimo);
   const totalPaginas = Math.ceil(avaluosFiltrados.length / registrosPorPagina);
 
   // ===== ASIGNAR VENCIMIENTO =====
@@ -207,8 +230,6 @@ export default function Dashboard({ setVistaActiva, onEditar, onNuevo }) {
     }
   };
 
-  const fmtFecha = (f) => f ? new Date(f).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
-
   const tarjetas = [
     { clave: 'Pendientes', etiqueta: 'Pendientes', valor: kpis.pendientes, estado: 'Pendiente', pie: 'Sin vencimiento asignado' },
     { clave: 'En Proceso', etiqueta: 'En proceso', valor: kpis.enProceso, estado: 'En Proceso', pie: 'Dentro del plazo' },
@@ -258,6 +279,8 @@ export default function Dashboard({ setVistaActiva, onEditar, onNuevo }) {
                       display:flex; padding:.2rem; border-radius:5px; cursor:pointer; }
         .ca-limpiar:hover { color:#b91c1c; background:#fee2e2; }
 
+
+
         .ca-btn-primario { display:inline-flex; align-items:center; gap:.4rem; background:var(--azul); color:#fff; border:none;
                            border-radius:8px; padding:.5rem .9rem; font-size:.82rem; font-weight:600; cursor:pointer;
                            transition:filter .15s, box-shadow .15s; }
@@ -267,7 +290,10 @@ export default function Dashboard({ setVistaActiva, onEditar, onNuevo }) {
         .ca-tabla { width:100%; border-collapse:collapse; font-size:.83rem; }
         .ca-tabla th { font-size:.68rem; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--suave);
                        background:var(--fondo); padding:.6rem .75rem; text-align:left; border-bottom:1px solid var(--linea);
-                       white-space:nowrap; }
+                       white-space:nowrap; transition:background .15s; }
+        .ca-th-sortable { cursor:pointer; user-select:none; }
+        .ca-th-sortable:hover { background:#f1f5f9; color:var(--azul); }
+        .ca-th-activo { color:var(--azul); }
         .ca-tabla td { padding:.62rem .75rem; border-bottom:1px solid #f1f5f9; color:var(--tinta); vertical-align:middle; }
         .ca-tabla tbody tr:hover { background:#f9fbff; }
         .ca-tabla tbody tr:last-child td { border-bottom:none; }
@@ -275,7 +301,7 @@ export default function Dashboard({ setVistaActiva, onEditar, onNuevo }) {
         .ca-id { font-weight:700; color:var(--azul); text-decoration:none; }
         .ca-nombre { font-weight:600; max-width:210px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         .ca-tag { display:inline-block; font-size:.66rem; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
-                  color:var(--suave); background:var(--fondo); border:1px solid var(--linea); border-radius:5px; padding:.15rem .45rem; }
+                  color:#374151; background:var(--fondo); border:1px solid var(--linea); border-radius:5px; padding:.15rem .45rem; }
         .ca-estado { display:inline-flex; align-items:center; gap:.35rem; font-size:.7rem; font-weight:700; letter-spacing:.03em;
                      border-radius:999px; padding:.22rem .6rem; white-space:nowrap; }
         .ca-vacio { color:var(--suave); font-style:italic; }
@@ -303,6 +329,8 @@ export default function Dashboard({ setVistaActiva, onEditar, onNuevo }) {
         .ca-pag button:hover:not(:disabled) { border-color:var(--azul); color:var(--azul); }
         .ca-pag button:disabled { opacity:.45; cursor:default; }
         .ca-pag-info { font-size:.78rem; color:var(--suave); font-variant-numeric:tabular-nums; }
+        .ca-select-pag { border:1px solid var(--linea); border-radius:6px; padding:.2rem .4rem; font-size:.75rem; color:var(--tinta); background:#fff; cursor:pointer; outline:none; transition:border-color .15s; }
+        .ca-select-pag:focus { border-color:var(--azul); box-shadow:0 0 0 2px rgba(29,66,154,.12); }
 
         /* Modal de vencimiento */
         .ca-overlay { position:fixed; inset:0; background:rgba(15,23,42,.5); display:flex; align-items:center;
@@ -404,8 +432,13 @@ export default function Dashboard({ setVistaActiva, onEditar, onNuevo }) {
           <table className="ca-tabla">
             <thead>
               <tr>
-                <th>ID</th><th>Solicitante</th><th>Documento</th><th>Tipo</th>
-                <th>F. visita</th><th>Vencimiento</th><th>Estado</th>
+                <th className={`ca-th-sortable ${orden.clave === 'id' ? 'ca-th-activo' : ''}`} onClick={() => setOrden({ clave: 'id', direccion: orden.clave === 'id' && orden.direccion === 'asc' ? 'desc' : 'asc' })}>ID {orden.clave === 'id' ? (orden.direccion === 'asc' ? '↑' : '↓') : ''}</th>
+                <th className={`ca-th-sortable ${orden.clave === 'solicitante' ? 'ca-th-activo' : ''}`} onClick={() => setOrden({ clave: 'solicitante', direccion: orden.clave === 'solicitante' && orden.direccion === 'asc' ? 'desc' : 'asc' })}>Solicitante {orden.clave === 'solicitante' ? (orden.direccion === 'asc' ? '↑' : '↓') : ''}</th>
+                <th className={`ca-th-sortable ${orden.clave === 'documento' ? 'ca-th-activo' : ''}`} onClick={() => setOrden({ clave: 'documento', direccion: orden.clave === 'documento' && orden.direccion === 'asc' ? 'desc' : 'asc' })}>Documento {orden.clave === 'documento' ? (orden.direccion === 'asc' ? '↑' : '↓') : ''}</th>
+                <th className={`ca-th-sortable ${orden.clave === 'tipo_avaluo' ? 'ca-th-activo' : ''}`} onClick={() => setOrden({ clave: 'tipo_avaluo', direccion: orden.clave === 'tipo_avaluo' && orden.direccion === 'asc' ? 'desc' : 'asc' })}>Tipo {orden.clave === 'tipo_avaluo' ? (orden.direccion === 'asc' ? '↑' : '↓') : ''}</th>
+                <th className={`ca-th-sortable ${orden.clave === 'fecha_visita' ? 'ca-th-activo' : ''}`} onClick={() => setOrden({ clave: 'fecha_visita', direccion: orden.clave === 'fecha_visita' && orden.direccion === 'asc' ? 'desc' : 'asc' })}>F. visita {orden.clave === 'fecha_visita' ? (orden.direccion === 'asc' ? '↑' : '↓') : ''}</th>
+                <th className={`ca-th-sortable ${orden.clave === 'fecha_limite_entrega' ? 'ca-th-activo' : ''}`} onClick={() => setOrden({ clave: 'fecha_limite_entrega', direccion: orden.clave === 'fecha_limite_entrega' && orden.direccion === 'asc' ? 'desc' : 'asc' })}>Vencimiento {orden.clave === 'fecha_limite_entrega' ? (orden.direccion === 'asc' ? '↑' : '↓') : ''}</th>
+                <th className={`ca-th-sortable ${orden.clave === 'estadoSLA' ? 'ca-th-activo' : ''}`} onClick={() => setOrden({ clave: 'estadoSLA', direccion: orden.clave === 'estadoSLA' && orden.direccion === 'asc' ? 'desc' : 'asc' })}>Estado {orden.clave === 'estadoSLA' ? (orden.direccion === 'asc' ? '↑' : '↓') : ''}</th>
                 <th style={{ textAlign: 'right' }}>Acciones</th>
               </tr>
             </thead>
@@ -418,9 +451,9 @@ export default function Dashboard({ setVistaActiva, onEditar, onNuevo }) {
                   <tr key={av.id}>
                     <td><a className="ca-id" href="#" onClick={(ev) => { ev.preventDefault(); onEditar(av.id); }} title="Abrir expediente">#{av.id}</a></td>
                     <td><div className="ca-nombre" title={av.solicitante}>{av.solicitante || '—'}</div></td>
-                    <td className="ca-num" style={{ color: '#6b7280' }}>{av.documento || '—'}</td>
+                    <td className="ca-num" style={{ color: '#374151', fontWeight: '500' }}>{av.documento || '—'}</td>
                     <td><span className="ca-tag">{av.tipo_avaluo || '—'}</span></td>
-                    <td className="ca-num" style={{ color: '#6b7280' }}>{fmtFecha(av.fecha_visita)}</td>
+                    <td className="ca-num" style={{ color: '#374151', fontWeight: '500' }}>{fmtFecha(av.fecha_visita)}</td>
                     <td className="ca-num">
                       {av.fecha_limite_entrega
                         ? <span style={{ fontWeight: 600, color: vencido ? '#b91c1c' : 'var(--tinta)' }}>{fmtFecha(av.fecha_limite_entrega)}</span>
@@ -434,7 +467,7 @@ export default function Dashboard({ setVistaActiva, onEditar, onNuevo }) {
 
                         {av.estado !== 'Finalizado' && (
                           <>
-                            <button className="ca-ico" style={{ '--tono': '#D97706' }}
+                            <button className="ca-ico" style={{ '--tono': '#f59e0b' }}
                                     onClick={() => abrirModalTiempos(av)} title="Asignar vencimiento"><Icono nombre="reloj" /></button>
                             <button className="ca-ico" style={{ '--tono': '#059669' }}
                                     onClick={() => finalizarAvaluo(av.id)} title="Marcar como entregado"><Icono nombre="check" /></button>
@@ -446,7 +479,7 @@ export default function Dashboard({ setVistaActiva, onEditar, onNuevo }) {
                                   onClick={() => reactivarAvaluo(av.id)} title="Reactivar"><Icono nombre="reactivar" /></button>
                         )}
 
-                        <button className="ca-ico ca-ico-pdf" style={{ '--tono': '#E11D48' }}
+                        <button className="ca-ico ca-ico-pdf" style={{ '--tono': '#ef4444' }}
                                 onClick={() => generarPDF(av.id)} disabled={generandoId === av.id}
                                 title="Generar informe PDF">
                           <Icono nombre="pdf" size={14} />{generandoId === av.id ? 'Generando…' : 'PDF'}
@@ -465,11 +498,20 @@ export default function Dashboard({ setVistaActiva, onEditar, onNuevo }) {
         </div>
 
         <div className="ca-panel-pie">
-          <span className="ca-pag-info">
-            {avaluosFiltrados.length > 0
-              ? <>Mostrando <strong>{indicePrimer + 1}–{Math.min(indiceUltimo, avaluosFiltrados.length)}</strong> de <strong>{avaluosFiltrados.length}</strong></>
-              : 'Sin resultados'}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+            <span className="ca-pag-info">
+              {avaluosFiltrados.length > 0
+                ? <>Mostrando <strong>{indicePrimer + 1}–{Math.min(indiceUltimo, avaluosFiltrados.length)}</strong> de <strong>{avaluosFiltrados.length}</strong></>
+                : 'Sin resultados'}
+            </span>
+            <select className="ca-select-pag" value={registrosPorPagina} onChange={(e) => { setRegistrosPorPagina(Number(e.target.value)); setPaginaActual(1); }}>
+              <option value={5}>5 por página</option>
+              <option value={10}>10 por página</option>
+              <option value={20}>20 por página</option>
+              <option value={50}>50 por página</option>
+              <option value={100}>100 por página</option>
+            </select>
+          </div>
           <div className="ca-pag">
             <button onClick={() => setPaginaActual(paginaActual - 1)} disabled={paginaActual === 1}>Anterior</button>
             <span className="ca-pag-info px-1">Página {totalPaginas === 0 ? 0 : paginaActual} de {totalPaginas}</span>
