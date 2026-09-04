@@ -215,7 +215,7 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
                 if (Array.isArray(anexosObj)) {
                     anexos = anexosObj.map((anexo, i) => ({
                         id_foto: String(anexo.id || i + 1),
-                        titulo: anexo.titulo || 'ANEXO FOTOGRÁFICO',
+                        titulo: anexo.titulo || '',
                         b64: getBase64Image(anexo.filename || anexo.url)
                     }));
                 }
@@ -223,6 +223,47 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
                 console.error("Error parseando anexos:", e);
             }
         }
+
+        const num = (v) => { const n = Number(v); return isFinite(n) ? n : 0; };
+
+        // Formato colombiano. Devuelven '' en cero para no ensuciar el informe
+        // con "0.000000", que era lo que se imprimía antes.
+        const fmtMoneda = (v) => {
+            const n = num(v);
+            if (n === 0) return '';
+            return '$ ' + n.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        };
+        const fmtNumero = (v) => {
+            const n = num(v);
+            if (n === 0) return '';
+            return n.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        };
+        const fmtPorcentaje = (v) => {
+            const n = num(v);
+            if (n === 0) return '';
+            return n.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' %';
+        };
+
+        // Cierre de la valoración.
+        // Se prefiere el valor total guardado (CVTValor / CVEValor) sobre el
+        // producto área x valor unitario: la plantilla multiplicaba siempre, y
+        // con un área mal digitada imprimía cifras absurdas (un avalúo con
+        // CVEValor=720.000.000 salía como 563.000.000.000.000). El producto
+        // queda solo como respaldo cuando no hay total guardado.
+        const valorTerreno = num(datos.CVTValor) > 0
+            ? num(datos.CVTValor)
+            : num(datos.CVTArea) * num(datos.CVTValorUnitario);
+        const valorEdificaciones = num(datos.CVEValor) > 0
+            ? num(datos.CVEValor)
+            : num(datos.CVEArea) * num(datos.CVEValorUnitario);
+        const valorTotal = valorTerreno + valorEdificaciones;
+        const valoracion = {
+            terreno: valorTerreno,
+            edificaciones: valorEdificaciones,
+            total: valorTotal,
+            pctTerreno: valorTotal > 0 ? (valorTerreno / valorTotal) * 100 : 0,
+            pctEdificaciones: valorTotal > 0 ? (valorEdificaciones / valorTotal) * 100 : 0
+        };
 
         // Evita la unidad duplicada ("8.451,11 M² M²", "128 METROS CUADRADOS M²"):
         // solo agrega "M²" si el funcionario no escribió ya la unidad en el campo.
@@ -235,6 +276,26 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
         const escapeHTML = (str) => String(str == null ? '' : str)
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+        // Seleccionables en rejilla alineada (patrón de la plantilla de
+        // referencia): columnas fijas, filas cebra y casilla cuadrada. Antes
+        // fluían como texto corrido y se desalineaban, sobre todo en Dotación
+        // Comunal, donde 31 casillas quedaban en renglones irregulares.
+        const renderChecks = (items, columnas) => {
+            const cols = columnas || 3;
+            if (!items || items.length === 0) return '';
+            let html = '<table class="check-grid"><tbody>';
+            for (let i = 0; i < items.length; i += cols) {
+                html += '<tr>';
+                for (let c = 0; c < cols; c++) {
+                    const it = items[i + c];
+                    if (!it) { html += '<td class="vacia"></td>'; continue; }
+                    html += `<td><span class="chk${it.on ? ' chk-on' : ''}"></span>${escapeHTML(it.label)}</td>`;
+                }
+                html += '</tr>';
+            }
+            return html + '</tbody></table>';
+        };
 
         // Capítulo "ANEXOS": hoja nueva y las fotos una debajo de la otra, en el
         // mismo orden en que el funcionario las dejó en el formulario.
@@ -290,7 +351,12 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
                     b64Croquis,
                     anexos,
                     renderAnexos,
+                    renderChecks,
                     areaM2,
+                    valoracion,
+                    fmtMoneda,
+                    fmtNumero,
+                    fmtPorcentaje,
                     formatDate,
                     procesarVariables
                 });
@@ -308,12 +374,29 @@ app.get('/api/avaluos/:id/pdf', async (req, res) => {
             const page = await browser.newPage();
             await page.setContent(htmlPlantilla, { waitUntil: 'networkidle0', timeout: 60000 });
 
+            // Numeración de páginas: es lo único que Chromium puede numerar por
+            // hoja (el CSS counter(page) no está soportado), y solo se dibuja
+            // dentro del margen. Por eso se reserva margen inferior y, a cambio,
+            // el espaciador del pie de la plantilla se reduce en la misma
+            // medida, para que el alto útil de contenido no cambie.
             await page.pdf({
                 path: rutaPDF,
                 format: 'Letter',
                 printBackground: true,
-                displayHeaderFooter: false,
-                margin: { top: '0', bottom: '0', left: '0', right: '0' }
+                displayHeaderFooter: true,
+                headerTemplate: '<div></div>',
+                // El número cae sobre la barra azul del membrete, así que va en
+                // blanco: sobre gris era ilegible.
+                footerTemplate: `
+                    <div style="width:100%; font-family:Helvetica,Arial,sans-serif; font-size:8.5px;
+                                color:#ffffff; padding: 0 14mm 0 14mm; text-align:right;">
+                        Página <span class="pageNumber"></span> de <span class="totalPages"></span>
+                    </div>`,
+                // 42mm reservan toda la franja inferior del membrete (contacto
+                // + barra azul) en TODAS las hojas. El margen superior queda en
+                // 0 a propósito: subirlo desplazaría el membrete, que va con
+                // position:fixed anclado al borde del área de contenido.
+                margin: { top: '0', bottom: '42mm', left: '0', right: '0' }
             });
         } finally {
             if (browser) await browser.close();

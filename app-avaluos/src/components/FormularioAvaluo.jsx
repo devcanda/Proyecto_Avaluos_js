@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react'
 
-const Field = ({ label, name, type = "text", col = "col-md-3", options = null, formData = {}, onChange }) => {
+// Topes de los cuadros de valoración. Sin ellos se alcanzó a guardar un área
+// de 99.999.999.999.999,99 m², que salía impresa en el informe firmado.
+const LIMITE_AREA = 10000000;            // 10 millones de m² (1.000 hectáreas)
+const LIMITE_VALOR_UNITARIO = 1000000000; // mil millones por m²
+
+const Field = ({ label, name, type = "text", col = "col-md-3", options = null, formData = {}, onChange, min, max, step }) => {
   const valorSeguro = formData[name] != null ? String(formData[name]) : '';
   return (
     <div className={col}>
@@ -16,7 +21,7 @@ const Field = ({ label, name, type = "text", col = "col-md-3", options = null, f
       ) : type === "textarea" ? (
         <textarea name={name} value={valorSeguro} onChange={onChange} className="form-control form-control-sm border-primary shadow-sm" rows="2"></textarea>
       ) : (
-        <input type={type} name={name} value={valorSeguro} onChange={onChange} className="form-control form-control-sm border-primary shadow-sm" />
+        <input type={type} name={name} value={valorSeguro} onChange={onChange} min={min} max={max} step={step} className="form-control form-control-sm border-primary shadow-sm" />
       )}
     </div>
   );
@@ -151,10 +156,36 @@ export default function FormularioAvaluo({ setVistaActiva, idEdicion }) {
 
   // LÓGICA INTELIGENTE DE GUARDADO DE IMÁGENES
   const confirmarGuardadoFinal = async () => {
+    // Los cuadros de valoración alimentan el valor comercial del informe
+    // firmado: una cifra imposible no debe poder guardarse.
+    const excesos = [];
+    const revisar = (campo, etiqueta, tope) => {
+      const n = Number(formData[campo]);
+      if (isFinite(n) && n > tope) excesos.push(`${etiqueta}: ${n.toLocaleString('es-CO')}`);
+    };
+    revisar('CVTArea', 'Área Terreno', LIMITE_AREA);
+    revisar('CVEArea', 'Área Constr.', LIMITE_AREA);
+    revisar('CVTValorUnitario', 'V. Unitario Terreno', LIMITE_VALOR_UNITARIO);
+    revisar('CVEValorUnitario', 'V. Unit. Constr.', LIMITE_VALOR_UNITARIO);
+    if (excesos.length > 0) {
+      alert(
+        "Revisa los cuadros de valoración, hay valores fuera de rango:\n\n" +
+        excesos.join('\n') +
+        `\n\nMáximos permitidos: área ${LIMITE_AREA.toLocaleString('es-CO')} m², ` +
+        `valor unitario $ ${LIMITE_VALOR_UNITARIO.toLocaleString('es-CO')}.`
+      );
+      return;
+    }
+
     if (!window.confirm("¿Confirmas los datos de este avalúo?")) return;
-    
+
     const datosGuardar = { ...formData };
-    
+
+    // El total de cada cuadro se guarda calculado, para que el formulario,
+    // la base de datos y el PDF muestren siempre la misma cifra.
+    datosGuardar.CVTValor = Number(formData.CVTArea || 0) * Number(formData.CVTValorUnitario || 0);
+    datosGuardar.CVEValor = Number(formData.CVEArea || 0) * Number(formData.CVEValorUnitario || 0);
+
     // Si la imagen es vieja y no la borramos, mantenemos el texto en la DB. Si se borró, mandamos null
     if (fotoFachada && fotoFachada.isOld) datosGuardar.foto_fachada = fotoFachada.filename;
     else if (!fotoFachada) datosGuardar.foto_fachada = null;
@@ -533,9 +564,9 @@ export default function FormularioAvaluo({ setVistaActiva, idEdicion }) {
             <div className="col-12"><h6 className="section-title">■ CUADROS DE VALORACIÓN</h6></div>
             <label className="fw-bold text-muted small w-100">TERRENO:</label>
             <Field label="Descripción Terreno" name="CVTDescripcion" col="col-md-3" formData={formData} onChange={handleInputChange} />
-            <Field label="Unidad Medida" name="CVTUnidadMedida" col="col-md-2" formData={formData} onChange={handleInputChange} />
-            <Field label="Área Terreno" name="CVTArea" type="number" col="col-md-2" formData={formData} onChange={handleInputChange} />
-            <Field label="V. Unitario Terreno" name="CVTValorUnitario" type="number" col="col-md-2" formData={formData} onChange={handleInputChange} />
+            <Field label="Unidad Medida" name="CVTUniadDeMedida" col="col-md-2" formData={formData} onChange={handleInputChange} />
+            <Field label="Área Terreno" name="CVTArea" type="number" col="col-md-2" min={0} max={LIMITE_AREA} step="0.01" formData={formData} onChange={handleInputChange} />
+            <Field label="V. Unitario Terreno" name="CVTValorUnitario" type="number" col="col-md-2" min={0} max={LIMITE_VALOR_UNITARIO} step="0.01" formData={formData} onChange={handleInputChange} />
             <Field label="Porcentaje" name="CVTPorcentaje" col="col-md-1" formData={formData} onChange={handleInputChange} />
             <div className="col-md-2">
               <label className="small fw-bold text-success">Total Terreno</label>
@@ -544,9 +575,9 @@ export default function FormularioAvaluo({ setVistaActiva, idEdicion }) {
 
             <label className="fw-bold text-muted small w-100 mt-2">EDIFICACIONES:</label>
             <Field label="Desc. Edificación" name="CVEDescripcion" col="col-md-3" formData={formData} onChange={handleInputChange} />
-            <Field label="Unidad Medida" name="CVEUnidadMedida" col="col-md-2" formData={formData} onChange={handleInputChange} />
-            <Field label="Área Constr." name="CVEArea" type="number" col="col-md-2" formData={formData} onChange={handleInputChange} />
-            <Field label="V. Unit. Constr." name="CVEValorUnitario" type="number" col="col-md-2" formData={formData} onChange={handleInputChange} />
+            <Field label="Unidad Medida" name="CVEUniadDeMedida" col="col-md-2" formData={formData} onChange={handleInputChange} />
+            <Field label="Área Constr." name="CVEArea" type="number" col="col-md-2" min={0} max={LIMITE_AREA} step="0.01" formData={formData} onChange={handleInputChange} />
+            <Field label="V. Unit. Constr." name="CVEValorUnitario" type="number" col="col-md-2" min={0} max={LIMITE_VALOR_UNITARIO} step="0.01" formData={formData} onChange={handleInputChange} />
             <Field label="Porcentaje" name="CVEPorcentaje" col="col-md-1" formData={formData} onChange={handleInputChange} />
             <div className="col-md-2">
               <label className="small fw-bold text-success">Total Construcción</label>

@@ -3,6 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <style>
+        /*
+          @page va SIN márgenes a propósito. El membrete es una imagen
+          position:fixed anclada al área de contenido: si se declara un margen
+          aquí, la imagen se recorta en ese borde y desaparecen la franja de
+          contacto y la barra azul del pie. La reserva del pie se hace con el
+          <tfoot> de la tabla de maquetación (ver más abajo).
+        */
         @page { margin: 0; size: letter; }
         * { box-sizing: border-box; }
         body { font-family: 'Helvetica', 'Arial', sans-serif; color: #333; font-size: 10px; line-height: 1.4; margin: 0; padding: 0; }
@@ -21,7 +28,7 @@
         .zebra-table-2 td { padding: 5px 8px; color: #333333; }
         .zebra-table-2 tr:nth-child(even) { background-color: #f4f6f9; }
         .corp-badge { background: #1d429a; color: white; padding: 5px 10px; font-weight: bold; font-size: 11px; display: inline-block; text-transform: uppercase; margin-bottom: 8px; }
-        .corp-subtitle { color: #2d56a0; font-size: 11px; margin-top: 12px; margin-bottom: 4px; font-weight: bold; }
+        .corp-subtitle { color: #2d56a0; font-size: 11px; margin-top: 9px; margin-bottom: 4px; font-weight: bold; }
         .corp-text { font-size: 11px; text-align: justify; line-height: 1.45; color: #333; margin-top: 2px; }
 
         /*
@@ -52,6 +59,13 @@
         /* MARCO DE PÁGINA: thead/tfoot reservan el espacio del membrete en CADA hoja */
         table.page-layout { width: 100%; border-collapse: collapse; border: none; }
         table.page-layout > thead > tr > td { height: 3.8cm; border: none; padding: 0; }
+        /*
+          ESTA es la reserva del pie, y se repite en todas las hojas porque
+          Chromium repite <tfoot> al fragmentar la tabla. No se puede sustituir
+          por el margen de page.pdf(): ese margen queda anulado por @page y solo
+          sirve para ubicar la numeración de páginas. Reducirlo hacía que el
+          texto se montara sobre la franja de contacto del membrete.
+        */
         table.page-layout > tfoot > tr > td { height: 4.2cm; border: none; padding: 0; }
         table.page-layout > tbody > tr > td { padding: 0.2cm 2cm; border: none; }
 
@@ -60,7 +74,7 @@
         table.data-table th, table.data-table td { border: 1px solid #dee2e6; padding: 5px 6px; text-align: left; font-size: 9.5px; }
         table.data-table th { background-color: #f4f6f9; color: #1a2b4c; width: 23%; font-weight: bold; }
         table.data-table td { width: 27%; color: #444; }
-        .comparables-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 11px; }
+        .comparables-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 11px; }
         .comparables-table th, .comparables-table td { border: 1px solid #dee2e6; padding: 5px 6px; }
         .comparables-table th { background-color: #f4f6f9; color: #2d56a0; font-weight: bold; }
         .comparables-table td { color: #333; }
@@ -88,14 +102,49 @@
 
         /* Un título nunca queda huérfano al final de la hoja */
         .corp-title, .corp-subtitle, .foto-box { page-break-after: avoid; break-after: avoid; }
-        .card-block { page-break-inside: avoid; break-inside: avoid; }
+
+        /*
+          Granularidad de paginación: lo indivisible es la FILA DE TABLA, no el
+          bloque completo. Antes .card-block era indivisible y, al no caber en
+          el espacio restante, saltaba entero dejando media hoja en blanco.
+          Ahora el contenido llena la hoja y solo se corta entre filas, que es
+          un corte natural y legible.
+        */
+        .zebra-table tr, .zebra-table-2 tr, .comparables-table tr,
+        table.check-grid > tbody > tr, table.data-table tr {
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+
+        /*
+          SELECCIONABLES: rejilla alineada, como la plantilla de referencia.
+          Columnas fijas + filas cebra: la vista puede recorrer la columna en
+          vez de rastrear texto corrido. La casilla es cuadrada (selección
+          múltiple), rellena cuando está marcada. La etiqueta va en gris
+          neutro para que lo que resalte sea el estado, no el texto.
+        */
+        table.check-grid { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 10.5px; margin: 4px 0 12px 0; }
+        table.check-grid td { padding: 5px 7px; border: 1px solid #e6eaf0; color: #333; }
+        table.check-grid tr:nth-child(even) td { background-color: #f4f6f9; }
+        table.check-grid td.vacia { border: none; background: transparent; }
+        .chk { display: inline-block; width: 9px; height: 9px; border: 1px solid #2d56a0; margin-right: 6px; vertical-align: -1px; background-color: transparent; }
+        .chk-on { background-color: #2d56a0; }
+
+        /* RESULTADO DE VALORES: el dato más importante del informe, destacado
+           como en la plantilla de referencia. */
+        table.resultado-valores { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 11px; margin-bottom: 4px; page-break-inside: avoid; break-inside: avoid; }
+        table.resultado-valores td { padding: 5px 10px; border: 1px solid #dee2e6; }
+        .rv-label { width: 50%; color: #2d56a0; font-weight: bold; }
+        .rv-valor { width: 32%; text-align: right; color: #333; }
+        .rv-pct { width: 18%; text-align: right; color: #666; }
+        table.resultado-valores tr.rv-total td { background-color: #1d429a; border-color: #1d429a; color: #ffffff; font-weight: bold; font-size: 13px; }
 
         /* CIERRE DE LA VALORACIÓN: datos del valuador y, debajo, su firma. */
-        .firma-cierre { margin-top: 40px; border-top: 1px solid #ddd; padding-top: 15px; page-break-inside: avoid; break-inside: avoid; }
+        .firma-cierre { margin-top: 10px; border-top: 1px solid #ddd; padding-top: 10px; page-break-inside: avoid; break-inside: avoid; }
         .firma-nombre { color: #1d429a; font-size: 14px; font-weight: bold; margin-bottom: 4px; }
         .firma-cargo { font-size: 11px; color: #333; margin-bottom: 6px; }
         .firma-registro { font-size: 10px; color: #666; line-height: 1.3; }
-        .firma-img { display: block; max-width: 200px; max-height: 70px; object-fit: contain; margin-top: 10px; }
+        .firma-img { display: block; max-width: 200px; max-height: 62px; object-fit: contain; margin-top: 10px; }
         .firma-pendiente { color: #ccc; font-style: italic; font-size: 10px; margin-top: 10px; }
 
         /* TEXTOS LEGALES: bloque largo que sí debe fluir entre hojas, pero sin
@@ -278,7 +327,7 @@
                         <% if (bloque.tipo === 'seccion_sector') { %>
                             <table class="grid-2">
                                 <tbody>
-                                    <tr>
+                                    <tr class="row-flow">
                                         <td>
                                             <div class="card-block">
                                                 <div class="corp-title"><span class="corp-bullet"></span>Sector</div>
@@ -290,15 +339,17 @@
                                                 </table>
 
                                                 <div class="corp-subtitle" style="margin-top: 10px;">Impacto ambiental negativo</div>
-                                                <div style="margin-bottom: 8px; font-size: 11px; color:#2d56a0; line-height: 1.6;">
-                                                    <span><%- datos.Aire ? '&#9679;' : '&#9675;' %></span> <span style="color:#333;">Aire</span> &nbsp;
-                                                    <span><%- datos.AguasServidas ? '&#9679;' : '&#9675;' %></span> <span style="color:#333;">Aguas Servidas</span> &nbsp;
-                                                    <span><%- datos.Basura ? '&#9679;' : '&#9675;' %></span> <span style="color:#333;">Basura</span> &nbsp;
-                                                    <span><%- datos.Inseguridad ? '&#9679;' : '&#9675;' %></span> <span style="color:#333;">Inseguridad</span> &nbsp;
-                                                    <span><%- datos.Ruido ? '&#9679;' : '&#9675;' %></span> <span style="color:#333;">Ruido</span>
-                                                </div>
-                                                <div class="corp-subtitle">Observaciones</div>
-                                                <p class="corp-text"><%= datos.SectorObservaciones || '' %></p>
+                                                <%- renderChecks([
+                                                    { label: 'Aire', on: datos.Aire },
+                                                    { label: 'Aguas Servidas', on: datos.AguasServidas },
+                                                    { label: 'Basura', on: datos.Basura },
+                                                    { label: 'Inseguridad', on: datos.Inseguridad },
+                                                    { label: 'Ruido', on: datos.Ruido }
+                                                ], 2) %>
+                                                <% if (datos.SectorObservaciones) { %>
+                                                    <div class="corp-subtitle">Observaciones</div>
+                                                    <p class="corp-text"><%= datos.SectorObservaciones %></p>
+                                                <% } %>
                                             </div>
                                         </td>
                                         <td>
@@ -331,12 +382,14 @@
                                                     <tr><td style="color:#2d56a0;">Irregularidad planta</td><td><%= datos.IrregularidadPlanta || '' %></td></tr>
                                                     <tr><td style="color:#2d56a0;">Irregularidad altura</td><td><%= datos.IrregularidadAltura || '' %></td></tr>
                                                 </table>
-                                                <div class="corp-subtitle">Comentarios de la estructura</div>
-                                                <p class="corp-text"><%= datos.ComentariosDeLaEstructura || '' %></p>
+                                                <% if (datos.ComentariosDeLaEstructura) { %>
+                                                    <div class="corp-subtitle">Comentarios de la estructura</div>
+                                                    <p class="corp-text"><%= datos.ComentariosDeLaEstructura %></p>
+                                                <% } %>
                                             </div>
                                         </td>
                                     </tr>
-                                    <tr>
+                                    <tr class="row-flow">
                                         <td>
                                             <div class="card-block">
                                                 <div class="corp-title"><span class="corp-bullet"></span>Equipamiento</div>
@@ -367,15 +420,15 @@
                                                 </table>
 
                                                 <div class="corp-subtitle">Amoblamiento urbano</div>
-                                                <div style="margin-bottom: 8px; font-size: 11px; color:#2d56a0; line-height: 1.6;">
-                                                    <span><%- datos.Alamedas ? '&#9679;' : '&#9675;' %></span> <span style="color:#333;">Alamedas</span> &nbsp;
-                                                    <span><%- datos.Alumbrado ? '&#9679;' : '&#9675;' %></span> <span style="color:#333;">Alumbrado</span> &nbsp;
-                                                    <span><%- datos.Arborizacion ? '&#9679;' : '&#9675;' %></span> <span style="color:#333;">Arborización</span> &nbsp;
-                                                    <span><%- datos.Ciclorutas ? '&#9679;' : '&#9675;' %></span> <span style="color:#333;">Ciclorutas</span><br/>
-                                                    <span><%- datos.Paradero ? '&#9679;' : '&#9675;' %></span> <span style="color:#333;">Paradero</span> &nbsp;
-                                                    <span><%- datos.Parques ? '&#9679;' : '&#9675;' %></span> <span style="color:#333;">Parques</span> &nbsp;
-                                                    <span><%- datos.ZonasVerdes ? '&#9679;' : '&#9675;' %></span> <span style="color:#333;">Zonas verdes</span>
-                                                </div>
+                                                <%- renderChecks([
+                                                    { label: 'Alamedas', on: datos.Alamedas },
+                                                    { label: 'Alumbrado', on: datos.Alumbrado },
+                                                    { label: 'Arborización', on: datos.Arborizacion },
+                                                    { label: 'Ciclorutas', on: datos.Ciclorutas },
+                                                    { label: 'Paradero', on: datos.Paradero },
+                                                    { label: 'Parques', on: datos.Parques },
+                                                    { label: 'Zonas verdes', on: datos.ZonasVerdes }
+                                                ], 2) %>
 
                                                 <div class="corp-subtitle">Perspectivas de valorización</div>
                                                 <p class="corp-text"><%= datos.PerspectivasDeValorizacion || '' %></p>
@@ -411,7 +464,7 @@
                                             <p class="corp-text" style="margin-bottom: 15px;"><%= datos.DescripcionGeneral || '' %></p>
                                         </td>
                                     </tr>
-                                    <tr>
+                                    <tr class="row-flow">
                                         <td>
                                             <div class="card-block">
                                                 <div class="corp-title"><span class="corp-bullet"></span>Información de Áreas y Normatividad</div>
@@ -449,8 +502,10 @@
                                                     <tr><td class="zebra-label">Área licencia de construcción</td><td class="zebra-value"><%= datos.AreaLicenciaDeConstruccion || '' %></td></tr>
                                                 </table>
 
-                                                <div class="corp-subtitle">Observaciones</div>
-                                                <p class="corp-text" style="color:#555;"><%= datos.AreaValoradaObservaciones || '' %></p>
+                                                <% if (datos.AreaValoradaObservaciones) { %>
+                                                    <div class="corp-subtitle">Observaciones</div>
+                                                    <p class="corp-text" style="color:#555;"><%= datos.AreaValoradaObservaciones %></p>
+                                                <% } %>
                                             </div>
                                         </td>
                                     </tr>
@@ -469,17 +524,23 @@
                                                     </tr>
                                                 </table>
 
-                                                <div class="corp-subtitle">Comportamiento oferta y demanda</div>
-                                                <p class="corp-text"><%= datos.ComportamientoOfertayDemanda || '' %></p>
+                                                <% if (datos.ComportamientoOfertayDemanda) { %>
+                                                    <div class="corp-subtitle">Comportamiento oferta y demanda</div>
+                                                    <p class="corp-text"><%= datos.ComportamientoOfertayDemanda %></p>
+                                                <% } %>
                                             </div>
                                         </td>
                                         <td>
                                             <div class="card-block">
-                                                <div class="corp-subtitle" style="margin-top: 0;">Descripción sector, actividad inmobiliaria, vías importantes</div>
-                                                <p class="corp-text"><%= datos.DescripcionSectorInmobiliario || '' %></p>
+                                                <% if (datos.DescripcionSectorInmobiliario) { %>
+                                                    <div class="corp-subtitle" style="margin-top: 0;">Descripción sector, actividad inmobiliaria, vías importantes</div>
+                                                    <p class="corp-text"><%= datos.DescripcionSectorInmobiliario %></p>
+                                                <% } %>
 
-                                                <div class="corp-subtitle">Actualidad edificadora</div>
-                                                <p class="corp-text"><%= datos.ActualidadEdificadora || '' %></p>
+                                                <% if (datos.ActualidadEdificadora) { %>
+                                                    <div class="corp-subtitle">Actualidad edificadora</div>
+                                                    <p class="corp-text"><%= datos.ActualidadEdificadora %></p>
+                                                <% } %>
                                             </div>
                                         </td>
                                     </tr>
@@ -490,7 +551,7 @@
                         <% if (bloque.tipo === 'seccion_predio_dotacion') { %>
                             <table class="grid-2">
                                 <tbody>
-                                    <tr>
+                                    <tr class="row-flow">
                                         <td>
                                             <div class="card-block">
                                                 <div class="corp-title"><span class="corp-bullet"></span>Predio</div>
@@ -573,7 +634,7 @@
                                             </div>
                                         </td>
                                     </tr>
-                                    <tr>
+                                    <tr class="row-flow">
                                         <td class="full" colspan="2">
                                             <div class="card-block">
                                                 <div class="corp-title"><span class="corp-bullet"></span>Dotación Comunal</div>
@@ -582,23 +643,21 @@
                                                     <tr><td style="color:#2d56a0;">Valor admón m²</td><td><%= datos.DCValorAdmonM2 || '' %></td><td style="color:#2d56a0;">Vigilancia Priv.</td><td><%= datos.DCVigilanciaPrivada || '' %></td></tr>
                                                     <tr><td style="color:#2d56a0;">Ascensores</td><td colspan="3"><%= datos.DCAscensores || '' %></td></tr>
                                                 </table>
-                                                <div style="line-height:1.9; margin-top:5px;">
-                                                    <%
-                                                    const dcLabels = ['A.A. Central', 'BBQ', 'Bicicletero', 'Bomba eyect', 'Calefacción', 'Cancha multiuso', 'Cancha Squash', 'CCTV', 'Citofonía', 'Club house', 'Equipo de presión', 'Garajes residentes', 'Garajes visitantes', 'Gimnasio', 'Golfito', 'Guardería', 'Juegos niños', 'Piscina', 'Planta eléctrica', 'Portería', 'Salón comunal', 'Salón de juegos', 'Sauna', 'Shut basuras', 'Tanque de agua', 'Teatrino', 'Terraza comunal', 'Turco', 'Vigilancia 24 horas', 'Zonas verdes', 'Otros'];
-                                                    dcLabels.forEach(lbl => {
-                                                        let field = 'DC' + lbl.replace(/[^a-zA-Z]/g, '');
-                                                        if (lbl === 'Bomba eyect') field = 'DCBombaEyect';
-                                                        if (lbl === 'Equipo de presión') field = 'DCEquipoPresion';
-                                                        if (lbl === 'Juegos niños') field = 'DCJuegosNinos';
-                                                        if (lbl === 'Shut basuras') field = 'DCShutBasuras';
-                                                        if (lbl === 'Zonas verdes') field = 'DCZonaVerde';
-                                                        if (lbl === 'Vigilancia 24 horas') field = 'DCVigilancia24Horas';
-                                                        if (lbl === 'A.A. Central') field = 'DCAACentral';
-                                                        let check = datos[field] ? 'background-color:#2d56a0;' : 'background-color:transparent;';
-                                                    %>
-                                                        <span style="display:inline-block; white-space:nowrap; margin-right:14px;"><span style="display:inline-block; width:10px; height:10px; border-radius:50%; border:1px solid #2d56a0; margin-right:4px; vertical-align:middle; <%= check %>"></span><span style="vertical-align:middle; color:#2d56a0; font-size:11px; font-weight:bold;"><%= lbl %></span></span>
-                                                    <% }); %>
-                                                </div>
+                                                <%
+                                                const dcLabels = ['A.A. Central', 'BBQ', 'Bicicletero', 'Bomba eyect', 'Calefacción', 'Cancha multiuso', 'Cancha Squash', 'CCTV', 'Citofonía', 'Club house', 'Equipo de presión', 'Garajes residentes', 'Garajes visitantes', 'Gimnasio', 'Golfito', 'Guardería', 'Juegos niños', 'Piscina', 'Planta eléctrica', 'Portería', 'Salón comunal', 'Salón de juegos', 'Sauna', 'Shut basuras', 'Tanque de agua', 'Teatrino', 'Terraza comunal', 'Turco', 'Vigilancia 24 horas', 'Zonas verdes', 'Otros'];
+                                                const dcItems = dcLabels.map(lbl => {
+                                                    let field = 'DC' + lbl.replace(/[^a-zA-Z]/g, '');
+                                                    if (lbl === 'Bomba eyect') field = 'DCBombaEyect';
+                                                    if (lbl === 'Equipo de presión') field = 'DCEquipoPresion';
+                                                    if (lbl === 'Juegos niños') field = 'DCJuegosNinos';
+                                                    if (lbl === 'Shut basuras') field = 'DCShutBasuras';
+                                                    if (lbl === 'Zonas verdes') field = 'DCZonaVerde';
+                                                    if (lbl === 'Vigilancia 24 horas') field = 'DCVigilancia24Horas';
+                                                    if (lbl === 'A.A. Central') field = 'DCAACentral';
+                                                    return { label: lbl, on: datos[field] };
+                                                });
+                                                %>
+                                                <%- renderChecks(dcItems, 4) %>
                                             </div>
                                         </td>
                                     </tr>
@@ -676,38 +735,75 @@
                                 <tr class="row-sujeto"><td colspan="2" style="text-align:center; padding:5px;">SUJETO</td><td style="text-align:center;"><%= datos.Edad || '0' %></td><td style="text-align:right;"><%= datos.AreaLote || '0,00' %></td><td style="text-align:right;"><%= datos.AreaValorada || '0,00' %></td><td></td><td></td><td></td></tr>
                             </table>
 
-                            <div class="corp-title" style="margin-top: 20px;"><span class="corp-bullet"></span>Diagnostico valores de referencia</div>
-                            <p class="corp-text"><%= datos.DVRDiagnostico || '' %></p>
+                            <% if (datos.DVRDiagnostico) { %>
+                                <div class="corp-title" style="margin-top: 20px;"><span class="corp-bullet"></span>Diagnostico valores de referencia</div>
+                                <p class="corp-text"><%= datos.DVRDiagnostico %></p>
+                            <% } %>
 
-                            <div class="corp-subtitle" style="margin-top:20px; margin-bottom: 5px;">Cuadro de valoración terreno</div>
+                            <% if (valoracion.terreno > 0 || Number(datos.CVTArea) > 0) { %>
+                            <div class="corp-subtitle" style="margin-top:10px; margin-bottom: 5px;">Cuadro de valoración terreno</div>
                             <table class="comparables-table" style="text-align: center;">
                                 <tr><th>TERRENO</th><th>DESCRIPCIÓN</th><th>ÁREA</th><th>UNIDAD DE MEDIDA</th><th>VALOR M²</th><th>PRECIO TOTAL</th><th>PORCENTAJE</th></tr>
                                 <tr>
                                     <td>LOTE</td>
                                     <td><%= datos.CVTDescripcion || '' %></td>
-                                    <td><%= datos.CVTArea || '0' %></td>
+                                    <td><%= fmtNumero(datos.CVTArea) %></td>
                                     <td><%= datos.CVTUniadDeMedida || '' %></td>
-                                    <td><%= datos.CVTValorUnitario || '0' %></td>
-                                    <td><%= datos.CVTValor || '0' %></td>
-                                    <td><%= datos.CVTPorcentaje || '' %></td>
+                                    <td><%= fmtMoneda(datos.CVTValorUnitario) %></td>
+                                    <td><%= fmtMoneda(valoracion.terreno) %></td>
+                                    <td><%= fmtPorcentaje(valoracion.pctTerreno) %></td>
                                 </tr>
-                                <tr class="row-total"><td colspan="2" class="label-total">SUBTOTAL TERRENO</td><td><%= datos.CVTArea || '0' %></td><td colspan="2"></td><td><%= datos.CVTValor || '0' %></td><td><%= datos.CVTPorcentaje || '' %></td></tr>
+                                <tr class="row-total"><td colspan="2" class="label-total">SUBTOTAL TERRENO</td><td><%= fmtNumero(datos.CVTArea) %></td><td colspan="2"></td><td><%= fmtMoneda(valoracion.terreno) %></td><td><%= fmtPorcentaje(valoracion.pctTerreno) %></td></tr>
                             </table>
+                            <% } %>
 
+                            <% if (valoracion.edificaciones > 0 || Number(datos.CVEArea) > 0) { %>
                             <div class="corp-subtitle" style="margin-top: 20px; margin-bottom: 5px;">Cuadro de valoración edificaciones</div>
                             <table class="comparables-table" style="text-align: center;">
                                 <tr><th>EDIFICACIONES</th><th>DESCRIPCIÓN</th><th>ÁREA</th><th>UNIDAD DE MEDIDA</th><th>VALOR M²</th><th>PRECIO TOTAL</th><th>PORCENTAJE</th></tr>
                                 <tr>
                                     <td>CONSTRUCCIÓN</td>
                                     <td><%= datos.CVEDescripcion || '' %></td>
-                                    <td><%= datos.CVEArea || '0' %></td>
+                                    <td><%= fmtNumero(datos.CVEArea) %></td>
                                     <td><%= datos.CVEUniadDeMedida || '' %></td>
-                                    <td><%= datos.CVEValorUnitario || '0' %></td>
-                                    <td><%= (Number(datos.CVEArea || 0) * Number(datos.CVEValorUnitario || 0)).toLocaleString('es-CO') %></td>
-                                    <td><%= datos.CVEPorcentaje || '' %></td>
+                                    <td><%= fmtMoneda(datos.CVEValorUnitario) %></td>
+                                    <td><%= fmtMoneda(valoracion.edificaciones) %></td>
+                                    <td><%= fmtPorcentaje(valoracion.pctEdificaciones) %></td>
                                 </tr>
-                                <tr class="row-total"><td colspan="2" class="label-total">SUBTOTAL EDIFICACIONES</td><td><%= datos.CVEArea || '0' %></td><td colspan="2"></td><td><%= (Number(datos.CVEArea || 0) * Number(datos.CVEValorUnitario || 0)).toLocaleString('es-CO') %></td><td><%= datos.CVEPorcentaje || '' %></td></tr>
+                                <tr class="row-total"><td colspan="2" class="label-total">SUBTOTAL EDIFICACIONES</td><td><%= fmtNumero(datos.CVEArea) %></td><td colspan="2"></td><td><%= fmtMoneda(valoracion.edificaciones) %></td><td><%= fmtPorcentaje(valoracion.pctEdificaciones) %></td></tr>
                             </table>
+                            <% } %>
+
+                            <%
+                              /* RESULTADO DE VALORES: el informe no mostraba en ninguna
+                                 parte el valor comercial final; había que sumar los dos
+                                 subtotales a mano. */
+                            %>
+                            <% if (valoracion.total > 0) { %>
+                                <div class="corp-title" style="margin-top: 14px; margin-bottom: 6px;"><span class="corp-bullet"></span>Resultado de Valores</div>
+                                <table class="resultado-valores">
+                                    <tbody>
+                                        <% if (valoracion.terreno > 0) { %>
+                                            <tr>
+                                                <td class="rv-label">Valor terreno</td>
+                                                <td class="rv-valor"><%= fmtMoneda(valoracion.terreno) %></td>
+                                                <td class="rv-pct"><%= fmtPorcentaje(valoracion.pctTerreno) %></td>
+                                            </tr>
+                                        <% } %>
+                                        <% if (valoracion.edificaciones > 0) { %>
+                                            <tr>
+                                                <td class="rv-label">Valor construcción</td>
+                                                <td class="rv-valor"><%= fmtMoneda(valoracion.edificaciones) %></td>
+                                                <td class="rv-pct"><%= fmtPorcentaje(valoracion.pctEdificaciones) %></td>
+                                            </tr>
+                                        <% } %>
+                                        <tr class="rv-total">
+                                            <td class="rv-label">VALOR COMERCIAL TOTAL</td>
+                                            <td class="rv-valor" colspan="2"><%= fmtMoneda(valoracion.total) %></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            <% } %>
 
                             <!--
                               CAJA DE FIRMA AL FINAL DE LA VALORACIÓN.
